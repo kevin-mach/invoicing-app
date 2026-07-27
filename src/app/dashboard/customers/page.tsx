@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 
@@ -27,12 +27,20 @@ export default async function CustomersPage({
     <div>
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Customers</h1>
-        <Link
-          href="/dashboard/customers/new"
-          className="flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-50 dark:text-slate-900"
-        >
-          <Plus size={16} /> New
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/customers/import"
+            className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <Upload size={16} /> Import
+          </Link>
+          <Link
+            href="/dashboard/customers/new"
+            className="flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-50 dark:text-slate-900"
+          >
+            <Plus size={16} /> New
+          </Link>
+        </div>
       </div>
 
       <form className="relative mt-4 max-w-sm">
