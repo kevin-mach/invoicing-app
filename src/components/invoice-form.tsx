@@ -54,10 +54,7 @@ export function InvoiceForm({
   const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
   useEffect(() => {
-    if (!customerId) {
-      setSuggestions([]);
-      return;
-    }
+    if (!customerId) return;
     let cancelled = false;
     fetch(`/api/customers/${customerId}/suggested-items`)
       .then((r) => r.json())
@@ -142,7 +139,7 @@ export function InvoiceForm({
         </div>
       </div>
 
-      {suggestions.length ? (
+      {customerId && suggestions.length ? (
         <div>
           <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
             Frequently ordered by this customer

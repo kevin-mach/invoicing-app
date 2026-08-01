@@ -31,11 +31,8 @@ const links = [
   { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
 ];
 
-export function DashboardNav({ orgName }: { orgName: string }) {
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
+function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  return (
     <nav className="flex flex-1 flex-col gap-1">
       {links.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
@@ -57,6 +54,11 @@ export function DashboardNav({ orgName }: { orgName: string }) {
       })}
     </nav>
   );
+}
+
+export function DashboardNav({ orgName }: { orgName: string }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   return (
     <>
@@ -73,7 +75,7 @@ export function DashboardNav({ orgName }: { orgName: string }) {
       </div>
       {open ? (
         <div className="no-print border-b border-slate-200 bg-white px-4 pb-4 md:hidden dark:border-slate-800 dark:bg-slate-900">
-          <NavLinks onNavigate={() => setOpen(false)} />
+          <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
           <form action={signOut} className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-800">
             <button className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
               <LogOut size={18} />
@@ -88,7 +90,7 @@ export function DashboardNav({ orgName }: { orgName: string }) {
         <span className="mb-6 px-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
           {orgName || "Invoicing"}
         </span>
-        <NavLinks />
+        <NavLinks pathname={pathname} />
         <form action={signOut} className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
           <button className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
             <LogOut size={18} />

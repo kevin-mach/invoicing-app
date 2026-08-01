@@ -354,18 +354,30 @@ export type Database = {
           id: string
           item_code_seq: number
           name: string
+          subscription_exempt: boolean
+          subscription_plan: string | null
+          subscription_status: string
+          trial_ends_at: string
         }
         Insert: {
           created_at?: string
           id?: string
           item_code_seq?: number
           name: string
+          subscription_exempt?: boolean
+          subscription_plan?: string | null
+          subscription_status?: string
+          trial_ends_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           item_code_seq?: number
           name?: string
+          subscription_exempt?: boolean
+          subscription_plan?: string | null
+          subscription_status?: string
+          trial_ends_at?: string
         }
         Relationships: []
       }
@@ -800,6 +812,7 @@ export type Database = {
       current_user_org_ids: { Args: never; Returns: string[] }
       generate_recurring_invoices: { Args: never; Returns: undefined }
       is_org_admin: { Args: { p_org_id: string }; Returns: boolean }
+      select_subscription_plan: { Args: { p_plan: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
