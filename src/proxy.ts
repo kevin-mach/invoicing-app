@@ -31,8 +31,13 @@ export async function proxy(request: NextRequest) {
 
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup");
+  // Invite links land here with the session token in the URL fragment, which the server
+  // never sees — the client establishes the session after this request completes.
+  const isInviteRoute = request.nextUrl.pathname.startsWith("/invite");
+  // Stripe calls this server-to-server with no session cookie — never gate it.
+  const isStripeWebhook = request.nextUrl.pathname.startsWith("/api/stripe/webhook");
 
-  if (!user && !isAuthRoute && request.nextUrl.pathname !== "/") {
+  if (!user && !isAuthRoute && !isInviteRoute && !isStripeWebhook && request.nextUrl.pathname !== "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

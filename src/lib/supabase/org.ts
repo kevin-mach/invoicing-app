@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { TIERS, DEFAULT_TIER, type TierKey } from "@/lib/billing/plans";
 
 export const TRIAL_DAYS = 5;
 
@@ -16,9 +17,13 @@ export type CurrentOrg = {
   trialEndsAt: string;
   subscriptionStatus: "trialing" | "active" | "canceled";
   subscriptionPlan: "monthly" | "yearly" | null;
+  subscriptionTier: TierKey;
   subscriptionExempt: boolean;
   /** True if the org can use the app right now: exempt, actively subscribed, or still within the trial window. */
   hasAccess: boolean;
+  /** Seat cap for the org's current tier (or the Starter cap while still on trial). */
+  maxUsers: number;
+  stripeCustomerId: string | null;
 };
 
 /** Returns the signed-in user's first organization, or null if they have none yet. */
@@ -33,7 +38,7 @@ export async function getCurrentOrg(): Promise<CurrentOrg | null> {
   const { data: membership } = await supabase
     .from("org_members")
     .select(
-      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_exempt)"
+      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_tier, subscription_exempt, stripe_customer_id)"
     )
     .eq("user_id", user.id)
     .limit(1)
@@ -46,13 +51,16 @@ export async function getCurrentOrg(): Promise<CurrentOrg | null> {
     trial_ends_at: string;
     subscription_status: string;
     subscription_plan: string | null;
+    subscription_tier: string;
     subscription_exempt: boolean;
+    stripe_customer_id: string | null;
   } | null;
 
   if (!org) return null;
 
   const isTrialActive = new Date(org.trial_ends_at).getTime() > Date.now();
   const hasAccess = org.subscription_exempt || org.subscription_status === "active" || isTrialActive;
+  const subscriptionTier = (org.subscription_tier as TierKey) ?? DEFAULT_TIER;
 
   return {
     orgId: membership.org_id,
@@ -63,7 +71,10 @@ export async function getCurrentOrg(): Promise<CurrentOrg | null> {
     trialEndsAt: org.trial_ends_at,
     subscriptionStatus: org.subscription_status as CurrentOrg["subscriptionStatus"],
     subscriptionPlan: org.subscription_plan as CurrentOrg["subscriptionPlan"],
+    subscriptionTier,
     subscriptionExempt: org.subscription_exempt,
     hasAccess,
+    maxUsers: TIERS[subscriptionTier].maxUsers,
+    stripeCustomerId: org.stripe_customer_id,
   };
 }

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { Check } from "lucide-react";
 import { getCurrentOrg, daysUntil } from "@/lib/supabase/org";
-import { PLANS, PLAN_FEATURES } from "@/lib/billing/plans";
-import { selectPlan } from "./actions";
+import { PLAN_FEATURES } from "@/lib/billing/plans";
+import { PricingTiers } from "./pricing-tiers";
 
 export default async function UpgradePage() {
   const org = await getCurrentOrg();
@@ -23,37 +23,12 @@ export default async function UpgradePage() {
           </p>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {(Object.values(PLANS)).map((plan) => (
-            <div
-              key={plan.key}
-              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"
-            >
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{plan.label}</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-slate-50">
-                {plan.priceLabel}
-                <span className="text-base font-normal text-slate-500 dark:text-slate-400">{plan.cadenceLabel}</span>
-              </p>
-              {plan.note ? (
-                <p className="mt-1 text-sm font-medium text-green-600 dark:text-green-400">{plan.note}</p>
-              ) : (
-                <p className="mt-1 text-sm text-transparent">placeholder</p>
-              )}
-
-              <form action={selectPlan.bind(null, plan.key)} className="mt-6">
-                <button
-                  type="submit"
-                  className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-50 dark:text-slate-900"
-                >
-                  Choose {plan.label}
-                </button>
-              </form>
-            </div>
-          ))}
+        <div className="mt-8">
+          <PricingTiers currentTier={org.subscriptionTier} />
         </div>
 
         <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">What&apos;s included</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">What&apos;s included on every plan</p>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {PLAN_FEATURES.map((feature) => (
               <li key={feature} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">

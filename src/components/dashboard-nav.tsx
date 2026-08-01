@@ -13,6 +13,7 @@ import {
   Route,
   Repeat,
   BarChart3,
+  UserPlus,
   Menu,
   X,
   LogOut,
@@ -29,6 +30,7 @@ const links = [
   { href: "/dashboard/runs", label: "Runs", icon: Route },
   { href: "/dashboard/templates", label: "Recurring", icon: Repeat },
   { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
+  { href: "/dashboard/team", label: "Team", icon: UserPlus },
 ];
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

@@ -354,9 +354,12 @@ export type Database = {
           id: string
           item_code_seq: number
           name: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           subscription_exempt: boolean
           subscription_plan: string | null
           subscription_status: string
+          subscription_tier: string
           trial_ends_at: string
         }
         Insert: {
@@ -364,9 +367,12 @@ export type Database = {
           id?: string
           item_code_seq?: number
           name: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subscription_exempt?: boolean
           subscription_plan?: string | null
           subscription_status?: string
+          subscription_tier?: string
           trial_ends_at?: string
         }
         Update: {
@@ -374,9 +380,12 @@ export type Database = {
           id?: string
           item_code_seq?: number
           name?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subscription_exempt?: boolean
           subscription_plan?: string | null
           subscription_status?: string
+          subscription_tier?: string
           trial_ends_at?: string
         }
         Relationships: []
@@ -808,9 +817,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_org_invite: { Args: never; Returns: undefined }
       create_organization: { Args: { p_name: string }; Returns: string }
       current_user_org_ids: { Args: never; Returns: string[] }
       generate_recurring_invoices: { Args: never; Returns: undefined }
+      get_org_members: {
+        Args: { p_org_id: string }
+        Returns: { id: string; user_id: string; email: string; role: string; created_at: string }[]
+      }
       is_org_admin: { Args: { p_org_id: string }; Returns: boolean }
       select_subscription_plan: { Args: { p_plan: string }; Returns: undefined }
     }
