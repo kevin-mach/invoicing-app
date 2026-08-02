@@ -7,6 +7,9 @@ import { getCurrentOrg } from "@/lib/supabase/org";
 
 export type InviteResult = { error: string | null };
 
+const INVITABLE_ROLES = ["staff", "admin", "bookkeeper"] as const;
+type InvitableRole = (typeof INVITABLE_ROLES)[number];
+
 export async function inviteTeamMember(
   _prevState: InviteResult,
   formData: FormData
@@ -19,6 +22,11 @@ export async function inviteTeamMember(
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return { error: "Enter an email address." };
+
+  const requestedRole = String(formData.get("role") ?? "staff");
+  if (!INVITABLE_ROLES.includes(requestedRole as InvitableRole)) {
+    return { error: "Invalid role." };
+  }
 
   const supabase = await createClient();
   const { count } = await supabase
@@ -38,7 +46,7 @@ export async function inviteTeamMember(
   }
 
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { invited_org_id: org.orgId, invited_role: "staff" },
+    data: { invited_org_id: org.orgId, invited_role: requestedRole },
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/invite/accept`,
   });
 
@@ -60,5 +68,23 @@ export async function removeTeamMember(memberId: string) {
 
   const supabase = await createClient();
   await supabase.from("org_members").delete().eq("id", memberId).eq("org_id", org.orgId);
+  revalidatePath("/dashboard/team");
+}
+
+export async function updateMemberRole(memberId: string, formData: FormData) {
+  const org = await getCurrentOrg();
+  if (!org) return;
+  if (org.role !== "owner" && org.role !== "admin") return;
+
+  const requestedRole = String(formData.get("role") ?? "");
+  if (!INVITABLE_ROLES.includes(requestedRole as InvitableRole)) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("org_members")
+    .update({ role: requestedRole })
+    .eq("id", memberId)
+    .eq("org_id", org.orgId)
+    .neq("role", "owner");
   revalidatePath("/dashboard/team");
 }

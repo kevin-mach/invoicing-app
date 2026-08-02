@@ -11,7 +11,7 @@ export function daysUntil(dateStr: string): number {
 export type CurrentOrg = {
   orgId: string;
   orgName: string;
-  role: "owner" | "admin" | "staff";
+  role: "owner" | "admin" | "staff" | "bookkeeper";
   userId: string;
   userEmail: string;
   trialEndsAt: string;

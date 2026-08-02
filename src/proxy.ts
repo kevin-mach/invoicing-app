@@ -49,6 +49,33 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Bookkeepers can only view Reports; everyone else (besides the owner) is kept out of it.
+  if (user && request.nextUrl.pathname.startsWith("/dashboard")) {
+    const { data: membership } = await supabase
+      .from("org_members")
+      .select("role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    const role = membership?.role;
+    const isReportsRoute =
+      request.nextUrl.pathname === "/dashboard/reports" ||
+      request.nextUrl.pathname.startsWith("/dashboard/reports/");
+
+    if (role === "bookkeeper" && !isReportsRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard/reports";
+      return NextResponse.redirect(url);
+    }
+
+    if (role && role !== "owner" && role !== "bookkeeper" && isReportsRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }
 

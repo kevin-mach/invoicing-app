@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { TIERS } from "@/lib/billing/plans";
 import { InviteForm } from "./invite-form";
-import { RemoveMemberButton } from "./member-actions";
+import { RemoveMemberButton, RoleSelect } from "./member-actions";
 
 export default async function TeamPage() {
   const org = await getCurrentOrg();
@@ -18,7 +18,8 @@ export default async function TeamPage() {
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Team</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         {memberCount} of {org.maxUsers} seats used on the {`${TIERS[org.subscriptionTier].label} plan`}. Every
-        team member can see all of this organization&apos;s invoices, runs, vendors, customers, and items.
+        team member can see all of this organization&apos;s invoices, runs, vendors, customers, and items — except
+        bookkeepers, who only see the Reports page, and everyone but the owner is kept out of Reports.
       </p>
 
       {canManage ? (
@@ -40,7 +41,13 @@ export default async function TeamPage() {
             {members?.map((m) => (
               <tr key={m.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                 <td className="px-4 py-3 text-slate-900 dark:text-slate-50">{m.email}</td>
-                <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-400">{m.role}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                  {canManage && m.role !== "owner" ? (
+                    <RoleSelect memberId={m.id} role={m.role} />
+                  ) : (
+                    <span className="capitalize">{m.role}</span>
+                  )}
+                </td>
                 {canManage ? (
                   <td className="px-4 py-3 text-right">
                     {m.user_id !== org.userId ? <RemoveMemberButton memberId={m.id} name={m.email} /> : null}

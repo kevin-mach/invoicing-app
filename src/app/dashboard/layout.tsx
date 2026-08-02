@@ -23,7 +23,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
-      <DashboardNav orgName={org.orgName} />
+      <DashboardNav orgName={org.orgName} role={org.role} />
       <div className="flex flex-1 flex-col overflow-x-hidden">
         {showTrialBanner ? (
           <div className="no-print flex items-center justify-between gap-3 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">

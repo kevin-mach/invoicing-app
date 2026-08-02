@@ -32,6 +32,18 @@ export function InviteForm({ atLimit }: { atLimit: boolean }) {
           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
         />
       </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Role</label>
+        <select
+          name="role"
+          defaultValue="staff"
+          className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm capitalize dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+        >
+          <option value="staff">Staff</option>
+          <option value="admin">Admin</option>
+          <option value="bookkeeper">Bookkeeper</option>
+        </select>
+      </div>
       <button
         type="submit"
         disabled={pending}
