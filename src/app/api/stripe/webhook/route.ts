@@ -49,6 +49,7 @@ export async function POST(request: Request) {
             stripe_customer_id:
               typeof session.customer === "string" ? session.customer : (session.customer?.id ?? null),
             stripe_subscription_id: subscriptionId ?? null,
+            cancel_at_period_end: false,
           })
           .eq("id", orgId);
       }
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
         const status = subscription.status === "active" || subscription.status === "trialing" ? "active" : "canceled";
         const cadence: Cadence =
           subscription.items.data[0]?.price.recurring?.interval === "year" ? "yearly" : "monthly";
+        const periodEnd = subscription.items.data[0]?.current_period_end;
 
         await admin
           .from("organizations")
@@ -72,6 +74,8 @@ export async function POST(request: Request) {
             ...(tier ? { subscription_tier: tier } : {}),
             subscription_plan: cadence,
             stripe_subscription_id: subscription.id,
+            cancel_at_period_end: subscription.cancel_at_period_end,
+            current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
           })
           .eq("id", orgId);
       }
@@ -82,7 +86,10 @@ export async function POST(request: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const orgId = subscription.metadata?.org_id;
       if (orgId) {
-        await admin.from("organizations").update({ subscription_status: "canceled" }).eq("id", orgId);
+        await admin
+          .from("organizations")
+          .update({ subscription_status: "canceled", cancel_at_period_end: false, current_period_end: null })
+          .eq("id", orgId);
       }
       break;
     }

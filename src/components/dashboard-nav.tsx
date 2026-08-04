@@ -14,6 +14,7 @@ import {
   Repeat,
   BarChart3,
   UserPlus,
+  CreditCard,
   Menu,
   X,
   LogOut,
@@ -31,12 +32,13 @@ const links = [
   { href: "/dashboard/templates", label: "Recurring", icon: Repeat },
   { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
   { href: "/dashboard/team", label: "Team", icon: UserPlus },
+  { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
 ];
 
 function visibleLinks(role: string) {
   if (role === "bookkeeper") return links.filter((l) => l.href === "/dashboard/reports");
   if (role === "owner") return links;
-  return links.filter((l) => l.href !== "/dashboard/reports");
+  return links.filter((l) => l.href !== "/dashboard/reports" && l.href !== "/dashboard/payments");
 }
 
 function NavLinks({

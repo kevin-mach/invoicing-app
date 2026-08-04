@@ -359,7 +359,9 @@ export type Database = {
       }
       organizations: {
         Row: {
+          cancel_at_period_end: boolean
           created_at: string
+          current_period_end: string | null
           id: string
           item_code_seq: number
           name: string
@@ -372,7 +374,9 @@ export type Database = {
           trial_ends_at: string
         }
         Insert: {
+          cancel_at_period_end?: boolean
           created_at?: string
+          current_period_end?: string | null
           id?: string
           item_code_seq?: number
           name: string
@@ -385,7 +389,9 @@ export type Database = {
           trial_ends_at?: string
         }
         Update: {
+          cancel_at_period_end?: boolean
           created_at?: string
+          current_period_end?: string | null
           id?: string
           item_code_seq?: number
           name?: string
@@ -854,7 +860,7 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals["public"]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends

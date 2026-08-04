@@ -24,6 +24,9 @@ export type CurrentOrg = {
   /** Seat cap for the org's current tier (or the Starter cap while still on trial). */
   maxUsers: number;
   stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
 };
 
 /** Returns the signed-in user's first organization, or null if they have none yet. */
@@ -38,7 +41,7 @@ export async function getCurrentOrg(): Promise<CurrentOrg | null> {
   const { data: membership } = await supabase
     .from("org_members")
     .select(
-      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_tier, subscription_exempt, stripe_customer_id)"
+      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_tier, subscription_exempt, stripe_customer_id, stripe_subscription_id, cancel_at_period_end, current_period_end)"
     )
     .eq("user_id", user.id)
     .limit(1)
@@ -54,6 +57,9 @@ export async function getCurrentOrg(): Promise<CurrentOrg | null> {
     subscription_tier: string;
     subscription_exempt: boolean;
     stripe_customer_id: string | null;
+    stripe_subscription_id: string | null;
+    cancel_at_period_end: boolean;
+    current_period_end: string | null;
   } | null;
 
   if (!org) return null;
@@ -76,5 +82,8 @@ export async function getCurrentOrg(): Promise<CurrentOrg | null> {
     hasAccess,
     maxUsers: TIERS[subscriptionTier].maxUsers,
     stripeCustomerId: org.stripe_customer_id,
+    stripeSubscriptionId: org.stripe_subscription_id,
+    cancelAtPeriodEnd: org.cancel_at_period_end,
+    currentPeriodEnd: org.current_period_end,
   };
 }
