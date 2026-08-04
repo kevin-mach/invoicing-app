@@ -9,8 +9,8 @@ export async function login(
   _prevState: AuthFormState,
   formData: FormData
 ): Promise<AuthFormState> {
-  const email = String(formData.get("email") ?? "");
-  const password = String(formData.get("password") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "").trim();
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });

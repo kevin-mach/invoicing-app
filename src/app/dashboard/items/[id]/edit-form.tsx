@@ -3,11 +3,12 @@
 import { useActionState } from "react";
 import { updateItem, deleteItem, type ItemFormState } from "../actions";
 import { UnitField } from "@/components/unit-field";
+import { CategoryField } from "@/components/category-field";
 import type { Tables } from "@/lib/supabase/types";
 
 const initialState: ItemFormState = { error: null };
 
-export function EditItemForm({ item }: { item: Tables<"items"> }) {
+export function EditItemForm({ item, categories }: { item: Tables<"items">; categories: string[] }) {
   const updateWithId = updateItem.bind(null, item.id);
   const [state, formAction, pending] = useActionState(updateWithId, initialState);
 
@@ -21,10 +22,7 @@ export function EditItemForm({ item }: { item: Tables<"items"> }) {
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
         <input name="name" required defaultValue={item.name} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Category</label>
-        <input name="category" defaultValue={item.category ?? ""} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
-      </div>
+      <CategoryField categories={categories} defaultValue={item.category ?? ""} />
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Sale price</label>
