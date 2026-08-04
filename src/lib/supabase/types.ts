@@ -143,6 +143,8 @@ export type Database = {
           sort_order: number
           unit_cost: number
           unit_price: number
+          vat_amount: number | null
+          vat_rate: number
         }
         Insert: {
           description: string
@@ -154,6 +156,8 @@ export type Database = {
           sort_order?: number
           unit_cost?: number
           unit_price?: number
+          vat_amount?: number | null
+          vat_rate?: number
         }
         Update: {
           description?: string
@@ -165,6 +169,8 @@ export type Database = {
           sort_order?: number
           unit_cost?: number
           unit_price?: number
+          vat_amount?: number | null
+          vat_rate?: number
         }
         Relationships: [
           {
@@ -279,6 +285,7 @@ export type Database = {
           sale_price: number
           stock_qty: number
           unit: string
+          vat_rate: number
         }
         Insert: {
           category?: string | null
@@ -292,6 +299,7 @@ export type Database = {
           sale_price?: number
           stock_qty?: number
           unit?: string
+          vat_rate?: number
         }
         Update: {
           category?: string | null
@@ -305,6 +313,7 @@ export type Database = {
           sale_price?: number
           stock_qty?: number
           unit?: string
+          vat_rate?: number
         }
         Relationships: [
           {
@@ -823,7 +832,13 @@ export type Database = {
       generate_recurring_invoices: { Args: never; Returns: undefined }
       get_org_members: {
         Args: { p_org_id: string }
-        Returns: { id: string; user_id: string; email: string; role: string; created_at: string }[]
+        Returns: {
+          created_at: string
+          email: string
+          id: string
+          role: string
+          user_id: string
+        }[]
       }
       is_org_admin: { Args: { p_org_id: string }; Returns: boolean }
       select_subscription_plan: { Args: { p_plan: string }; Returns: undefined }
@@ -839,7 +854,7 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals["public"]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends

@@ -26,6 +26,7 @@ export async function createItem(
     sale_price: Number(formData.get("sale_price") ?? 0) || 0,
     stock_qty: Number(formData.get("stock_qty") ?? 0) || 0,
     unit: String(formData.get("unit") ?? "unit") || "unit",
+    vat_rate: Number(formData.get("vat_rate") ?? 20) || 0,
   });
 
   if (error) return { error: error.message };
@@ -52,6 +53,7 @@ export async function updateItem(
       sale_price: Number(formData.get("sale_price") ?? 0) || 0,
       stock_qty: Number(formData.get("stock_qty") ?? 0) || 0,
       unit: String(formData.get("unit") ?? "unit") || "unit",
+      vat_rate: Number(formData.get("vat_rate") ?? 20) || 0,
       is_active: formData.get("is_active") === "on",
     })
     .eq("id", id);

@@ -3,6 +3,7 @@ type LineItem = {
   description: string;
   qty: number;
   unit_price: number;
+  vat_rate?: number;
   line_total: number | null;
 };
 
@@ -17,6 +18,7 @@ export function PrintableInvoice({
   lineItems,
   subtotal,
   tax,
+  vatTotal,
   total,
   notes,
 }: {
@@ -30,6 +32,7 @@ export function PrintableInvoice({
   lineItems: LineItem[];
   subtotal: number;
   tax: number;
+  vatTotal: number;
   total: number;
   notes: string | null;
 }) {
@@ -63,6 +66,7 @@ export function PrintableInvoice({
             <th className="py-2 font-medium">Description</th>
             <th className="py-2 text-right font-medium">Qty</th>
             <th className="py-2 text-right font-medium">Price</th>
+            <th className="py-2 text-right font-medium">VAT %</th>
             <th className="py-2 text-right font-medium">Total</th>
           </tr>
         </thead>
@@ -72,6 +76,7 @@ export function PrintableInvoice({
               <td className="py-2">{li.description}</td>
               <td className="py-2 text-right">{li.qty}</td>
               <td className="py-2 text-right">${li.unit_price.toFixed(2)}</td>
+              <td className="py-2 text-right">{li.vat_rate ?? 0}%</td>
               <td className="py-2 text-right">${(li.line_total ?? li.qty * li.unit_price).toFixed(2)}</td>
             </tr>
           ))}
@@ -83,6 +88,10 @@ export function PrintableInvoice({
           <div className="flex justify-between text-slate-600 dark:text-slate-400 print:text-black">
             <span>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400 print:text-black">
+            <span>VAT</span>
+            <span>${vatTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-slate-600 dark:text-slate-400 print:text-black">
             <span>Tax</span>

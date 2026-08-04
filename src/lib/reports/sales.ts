@@ -5,6 +5,7 @@ export type SalesRow = {
   qty: number;
   unitCost: number;
   unitPrice: number;
+  vatAmount: number;
 };
 
 export type SalesBucket = {
@@ -13,6 +14,7 @@ export type SalesBucket = {
   revenue: number;
   cost: number;
   profit: number;
+  vat: number;
 };
 
 export type Granularity = "day" | "month" | "year";
@@ -38,8 +40,16 @@ export function aggregateSales(rows: SalesRow[], granularity: Granularity): Sale
       existing.revenue += revenue;
       existing.cost += cost;
       existing.profit += revenue - cost;
+      existing.vat += row.vatAmount;
     } else {
-      buckets.set(key, { period, customerName: row.customerName, revenue, cost, profit: revenue - cost });
+      buckets.set(key, {
+        period,
+        customerName: row.customerName,
+        revenue,
+        cost,
+        profit: revenue - cost,
+        vat: row.vatAmount,
+      });
     }
   }
 

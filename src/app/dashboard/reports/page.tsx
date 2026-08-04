@@ -20,7 +20,9 @@ export default async function ReportsPage({
     (() => {
       let q = supabase
         .from("invoice_line_items")
-        .select("qty, unit_cost, unit_price, invoices!inner(org_id, customer_id, issue_date, customers(name))")
+        .select(
+          "qty, unit_cost, unit_price, vat_amount, invoices!inner(org_id, customer_id, issue_date, customers(name))"
+        )
         .eq("invoices.org_id", org.orgId);
       if (customerId) q = q.eq("invoices.customer_id", customerId);
       return q;
@@ -36,13 +38,19 @@ export default async function ReportsPage({
       qty: li.qty,
       unitCost: li.unit_cost,
       unitPrice: li.unit_price,
+      vatAmount: li.vat_amount ?? 0,
     };
   });
 
   const buckets = aggregateSales(rows, granularity);
   const totals = buckets.reduce(
-    (acc, b) => ({ revenue: acc.revenue + b.revenue, cost: acc.cost + b.cost, profit: acc.profit + b.profit }),
-    { revenue: 0, cost: 0, profit: 0 }
+    (acc, b) => ({
+      revenue: acc.revenue + b.revenue,
+      cost: acc.cost + b.cost,
+      profit: acc.profit + b.profit,
+      vat: acc.vat + b.vat,
+    }),
+    { revenue: 0, cost: 0, profit: 0, vat: 0 }
   );
 
   return (
@@ -82,7 +90,7 @@ export default async function ReportsPage({
         </button>
       </form>
 
-      <div className="mt-4 grid grid-cols-3 gap-4">
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <p className="text-sm text-slate-500 dark:text-slate-400">Revenue</p>
           <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">${totals.revenue.toFixed(2)}</p>
@@ -97,6 +105,10 @@ export default async function ReportsPage({
             ${totals.profit.toFixed(2)}
           </p>
         </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm text-slate-500 dark:text-slate-400">VAT</p>
+          <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">${totals.vat.toFixed(2)}</p>
+        </div>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -108,6 +120,7 @@ export default async function ReportsPage({
               <th className="px-4 py-3 text-right font-medium">Revenue</th>
               <th className="px-4 py-3 text-right font-medium">Cost</th>
               <th className="px-4 py-3 text-right font-medium">Profit</th>
+              <th className="px-4 py-3 text-right font-medium">VAT</th>
             </tr>
           </thead>
           <tbody>
@@ -120,11 +133,12 @@ export default async function ReportsPage({
                 <td className={`px-4 py-3 text-right font-medium ${b.profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                   ${b.profit.toFixed(2)}
                 </td>
+                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">${b.vat.toFixed(2)}</td>
               </tr>
             ))}
             {!buckets.length ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                   No sales in this period yet.
                 </td>
               </tr>

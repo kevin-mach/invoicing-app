@@ -28,6 +28,7 @@ export async function importItems(rows: Record<string, string>[]): Promise<Impor
       sale_price: Number(row.sale_price) || 0,
       stock_qty: Number(row.stock_qty) || 0,
       unit: row.unit || "unit",
+      vat_rate: row.vat_rate ? Number(row.vat_rate) || 20 : 20,
     });
     if (error) skipped++;
     else inserted++;

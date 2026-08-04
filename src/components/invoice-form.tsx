@@ -18,6 +18,7 @@ const emptyRow = (): Row => ({
   qty: 1,
   unit_cost: 0,
   unit_price: 0,
+  vat_rate: 20,
 });
 
 export function InvoiceForm({
@@ -90,11 +91,13 @@ export function InvoiceForm({
         qty: 1,
         unit_cost: item?.default_cost ?? 0,
         unit_price: s.unit_price,
+        vat_rate: item?.vat_rate ?? 20,
       },
     ]);
   };
 
   const subtotal = rows.reduce((sum, r) => sum + r.qty * r.unit_price, 0);
+  const vatTotal = rows.reduce((sum, r) => sum + (r.qty * r.unit_price * (Number(r.vat_rate) || 0)) / 100, 0);
   const total = subtotal + (Number(tax) || 0);
 
   return (
@@ -168,6 +171,7 @@ export function InvoiceForm({
               <th className="w-20 px-3 py-2 text-right font-medium">Qty</th>
               <th className="w-24 px-3 py-2 text-right font-medium">Cost</th>
               <th className="w-24 px-3 py-2 text-right font-medium">Price</th>
+              <th className="w-20 px-3 py-2 text-right font-medium">VAT %</th>
               <th className="w-24 px-3 py-2 text-right font-medium">Line total</th>
               <th className="w-10 px-3 py-2" />
             </tr>
@@ -186,6 +190,7 @@ export function InvoiceForm({
                           description: item.name,
                           unit_price: item.sale_price,
                           unit_cost: item.default_cost,
+                          vat_rate: item.vat_rate,
                         });
                       } else {
                         updateRow(row.key, { item_id: null });
@@ -238,6 +243,16 @@ export function InvoiceForm({
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={row.vat_rate}
+                    onChange={(e) => updateRow(row.key, { vat_rate: Number(e.target.value) || 0 })}
+                    className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+                  />
+                </td>
                 <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-50">
                   ${(row.qty * row.unit_price).toFixed(2)}
                 </td>
@@ -264,6 +279,10 @@ export function InvoiceForm({
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
             <span>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>VAT (from items)</span>
+            <span>${vatTotal.toFixed(2)}</span>
           </div>
           <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
             <span>Tax</span>

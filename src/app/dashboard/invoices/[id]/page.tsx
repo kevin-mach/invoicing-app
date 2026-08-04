@@ -28,6 +28,7 @@ export default async function InvoiceDetailPage({
 
   const customer = invoice.customers as unknown as { name: string; address: string | null } | null;
   const updateWithId = updateInvoiceLineItems.bind(null, invoice.id);
+  const vatTotal = (lineItems ?? []).reduce((sum, li) => sum + (li.vat_amount ?? 0), 0);
 
   return (
     <div className="max-w-3xl">
@@ -53,6 +54,7 @@ export default async function InvoiceDetailPage({
           lineItems={lineItems ?? []}
           subtotal={invoice.subtotal}
           tax={invoice.tax}
+          vatTotal={vatTotal}
           total={invoice.total}
           notes={invoice.notes}
         />
@@ -74,6 +76,7 @@ export default async function InvoiceDetailPage({
             qty: li.qty,
             unit_cost: li.unit_cost,
             unit_price: li.unit_price,
+            vat_rate: li.vat_rate,
           }))}
           submitLabel="Save changes"
         />

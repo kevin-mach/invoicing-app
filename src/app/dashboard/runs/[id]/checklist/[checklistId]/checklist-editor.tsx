@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff, Plus, ShoppingCart, FileText, Trash2 } from "lucide-react";
 import type { ItemOption } from "@/lib/supabase/items";
 import {
@@ -12,6 +12,8 @@ import {
 } from "./actions";
 
 type Row = ChecklistItemInput & { key: string };
+
+type Suggestion = { item_id: string; description: string; unit_price: number; count: number };
 
 const emptyRow = (): Row => ({
   key: crypto.randomUUID(),
@@ -25,12 +27,14 @@ const emptyRow = (): Row => ({
 export function ChecklistEditor({
   checklistId,
   stopType,
+  stopEntityId,
   items,
   initialItems,
   initialPriceVisible,
 }: {
   checklistId: string;
   stopType: "vendor" | "customer";
+  stopEntityId: string | null;
   items: ItemOption[];
   initialItems: ChecklistItemInput[];
   initialPriceVisible: boolean;
@@ -39,6 +43,7 @@ export function ChecklistEditor({
     initialItems.length ? initialItems.map((i) => ({ ...i, key: crypto.randomUUID() })) : [emptyRow()]
   );
   const [priceVisible, setPriceVisible] = useState(initialPriceVisible);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const saveWithId = saveChecklistItems.bind(null, checklistId);
 
   const updateRow = (key: string, patch: Partial<Row>) =>
@@ -47,6 +52,41 @@ export function ChecklistEditor({
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
 
   const itemsById = new Map(items.map((i) => [i.id, i]));
+
+  useEffect(() => {
+    if (!stopEntityId) return;
+    let cancelled = false;
+    const endpoint =
+      stopType === "vendor"
+        ? `/api/vendors/${stopEntityId}/suggested-items`
+        : `/api/customers/${stopEntityId}/suggested-items`;
+    fetch(endpoint)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setSuggestions(data.suggestions ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stopType, stopEntityId]);
+
+  const addSuggestion = (s: Suggestion) => {
+    const item = itemsById.get(s.item_id);
+    setRows((prev) => [
+      ...prev.filter((r) => r.description.trim() || r.item_id),
+      {
+        key: crypto.randomUUID(),
+        item_id: s.item_id,
+        description: item?.name ?? s.description,
+        qty: 1,
+        category: "real",
+        unit_price: s.unit_price,
+      },
+    ]);
+  };
 
   return (
     <div className="space-y-4">
@@ -82,6 +122,26 @@ export function ChecklistEditor({
           </button>
         </div>
       </div>
+
+      {suggestions.length ? (
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            {stopType === "vendor" ? "Frequently picked up from this vendor" : "Frequently delivered to this customer"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((s) => (
+              <button
+                type="button"
+                key={s.item_id}
+                onClick={() => addSuggestion(s)}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                + {s.description}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <form action={saveWithId}>
         <input type="hidden" name="items" value={JSON.stringify(rows.map(({ key: _key, ...rest }) => rest))} />

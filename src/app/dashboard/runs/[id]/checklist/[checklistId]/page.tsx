@@ -17,7 +17,7 @@ export default async function ChecklistPage({
   const [{ data: checklist }, { data: checklistItems }, items] = await Promise.all([
     supabase
       .from("checklists")
-      .select("*, run_stops(stop_type, vendors(name), customers(name))")
+      .select("*, run_stops(stop_type, customer_id, vendor_id, vendors(name), customers(name))")
       .eq("id", checklistId)
       .maybeSingle(),
     supabase.from("checklist_items").select("*").eq("checklist_id", checklistId).order("sort_order"),
@@ -28,10 +28,13 @@ export default async function ChecklistPage({
 
   const runStop = checklist.run_stops as unknown as {
     stop_type: "vendor" | "customer";
+    customer_id: string | null;
+    vendor_id: string | null;
     vendors: { name: string } | null;
     customers: { name: string } | null;
   };
   const stopName = runStop.stop_type === "vendor" ? runStop.vendors?.name : runStop.customers?.name;
+  const stopEntityId = runStop.stop_type === "vendor" ? runStop.vendor_id : runStop.customer_id;
 
   return (
     <div className="max-w-3xl">
@@ -46,6 +49,7 @@ export default async function ChecklistPage({
         <ChecklistEditor
           checklistId={checklist.id}
           stopType={runStop.stop_type}
+          stopEntityId={stopEntityId}
           items={items}
           initialItems={(checklistItems ?? []).map((i) => ({
             item_id: i.item_id,

@@ -13,6 +13,7 @@ export type LineItemInput = {
   qty: number;
   unit_cost: number;
   unit_price: number;
+  vat_rate: number;
 };
 
 function parseLineItems(raw: string): LineItemInput[] {
@@ -60,6 +61,7 @@ export async function createInvoice(
       qty: li.qty,
       unit_cost: li.unit_cost,
       unit_price: li.unit_price,
+      vat_rate: li.vat_rate,
       sort_order: i,
     }))
   );
@@ -105,6 +107,7 @@ export async function updateInvoiceLineItems(
       qty: li.qty,
       unit_cost: li.unit_cost,
       unit_price: li.unit_price,
+      vat_rate: li.vat_rate,
       sort_order: i,
     }))
   );

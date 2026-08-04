@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { updateItem, deleteItem, type ItemFormState } from "../actions";
+import { UnitField } from "@/components/unit-field";
 import type { Tables } from "@/lib/supabase/types";
 
 const initialState: ItemFormState = { error: null };
@@ -24,19 +25,20 @@ export function EditItemForm({ item }: { item: Tables<"items"> }) {
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Category</label>
         <input name="category" defaultValue={item.category ?? ""} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Sale price</label>
           <input name="sale_price" type="number" step="0.01" min="0" defaultValue={item.sale_price} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
         </div>
         <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">VAT rate (%)</label>
+          <input name="vat_rate" type="number" step="0.01" min="0" defaultValue={item.vat_rate} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
+        </div>
+        <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Stock qty</label>
           <input name="stock_qty" type="number" step="0.01" min="0" defaultValue={item.stock_qty} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Unit</label>
-          <input name="unit" defaultValue={item.unit} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
-        </div>
+        <UnitField defaultValue={item.unit} />
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Description</label>

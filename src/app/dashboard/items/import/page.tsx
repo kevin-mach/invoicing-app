@@ -10,6 +10,7 @@ const fields: ImportField[] = [
   { key: "description", label: "Description", aliases: ["description", "desc", "details"] },
   { key: "category", label: "Category", aliases: ["category", "type", "group"] },
   { key: "sale_price", label: "Sale price", aliases: ["saleprice", "price", "unitprice", "sellprice"] },
+  { key: "vat_rate", label: "VAT rate (%)", aliases: ["vatrate", "vat", "taxrate", "vatpercent"] },
   { key: "stock_qty", label: "Stock qty", aliases: ["stockqty", "quantity", "qty", "stock", "onhand"] },
   { key: "unit", label: "Unit", aliases: ["unit", "uom", "unitofmeasure"] },
 ];

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createItem, type ItemFormState } from "../actions";
+import { UnitField } from "@/components/unit-field";
 
 const initialState: ItemFormState = { error: null };
 
@@ -21,19 +22,20 @@ export default function NewItemPage() {
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Category</label>
           <input name="category" placeholder="e.g. Produce, Dairy" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Sale price</label>
             <input name="sale_price" type="number" step="0.01" min="0" defaultValue={0} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
           </div>
           <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">VAT rate (%)</label>
+            <input name="vat_rate" type="number" step="0.01" min="0" defaultValue={20} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Stock qty</label>
             <input name="stock_qty" type="number" step="0.01" min="0" defaultValue={0} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Unit</label>
-            <input name="unit" defaultValue="unit" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
-          </div>
+          <UnitField defaultValue="unit" />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Description</label>

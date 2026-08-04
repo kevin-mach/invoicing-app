@@ -6,6 +6,7 @@ export type ItemOption = {
   name: string;
   unit: string;
   sale_price: number;
+  vat_rate: number;
   default_cost: number;
 };
 
@@ -16,7 +17,7 @@ export async function getItemsWithDefaultCost(orgId: string): Promise<ItemOption
   const [{ data: items }, { data: prices }] = await Promise.all([
     supabase
       .from("items")
-      .select("id, item_code, name, unit, sale_price")
+      .select("id, item_code, name, unit, sale_price, vat_rate")
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("name"),
