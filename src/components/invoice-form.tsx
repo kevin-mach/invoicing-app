@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { InvoiceFormState, LineItemInput } from "@/app/dashboard/invoices/actions";
 import type { ItemOption } from "@/lib/supabase/items";
+import { formatGBP } from "@/lib/format";
 
 type Customer = { id: string; name: string };
 
@@ -50,6 +51,7 @@ export function InvoiceForm({
       : [emptyRow()]
   );
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [customerPrices, setCustomerPrices] = useState<Record<string, number>>({});
   const [tax, setTax] = useState(initialTax ?? 0);
 
   const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
@@ -60,10 +62,15 @@ export function InvoiceForm({
     fetch(`/api/customers/${customerId}/suggested-items`)
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled) setSuggestions(data.suggestions ?? []);
+        if (cancelled) return;
+        setSuggestions(data.suggestions ?? []);
+        setCustomerPrices(data.prices ?? {});
       })
       .catch(() => {
-        if (!cancelled) setSuggestions([]);
+        if (!cancelled) {
+          setSuggestions([]);
+          setCustomerPrices({});
+        }
       });
     return () => {
       cancelled = true;
@@ -111,7 +118,10 @@ export function InvoiceForm({
             name="customer_id"
             required
             value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
+            onChange={(e) => {
+              setCustomerId(e.target.value);
+              if (!e.target.value) setCustomerPrices({});
+            }}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
           >
             <option value="">Select a customer...</option>
@@ -187,8 +197,8 @@ export function InvoiceForm({
                       if (item) {
                         updateRow(row.key, {
                           item_id: item.id,
-                          description: item.name,
-                          unit_price: item.sale_price,
+                          description: `${item.unit} of ${item.name}`,
+                          unit_price: customerPrices[item.id] ?? item.sale_price,
                           unit_cost: item.default_cost,
                           vat_rate: item.vat_rate,
                         });
@@ -237,9 +247,9 @@ export function InvoiceForm({
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
                     value={row.unit_price}
                     onChange={(e) => updateRow(row.key, { unit_price: Number(e.target.value) || 0 })}
+                    title="Enter a negative price to credit a faulty or returned item"
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>
@@ -254,7 +264,7 @@ export function InvoiceForm({
                   />
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-50">
-                  ${(row.qty * row.unit_price).toFixed(2)}
+                  {formatGBP(row.qty * row.unit_price)}
                 </td>
                 <td className="px-3 py-2 text-right">
                   <button type="button" onClick={() => removeRow(row.key)} className="text-slate-400 hover:text-red-600">
@@ -278,11 +288,11 @@ export function InvoiceForm({
         <div className="w-full max-w-xs space-y-1 rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
             <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>{formatGBP(subtotal)}</span>
           </div>
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
             <span>VAT (from items)</span>
-            <span>${vatTotal.toFixed(2)}</span>
+            <span>{formatGBP(vatTotal)}</span>
           </div>
           <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
             <span>Tax</span>
@@ -298,7 +308,7 @@ export function InvoiceForm({
           </div>
           <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
             <span>Total</span>
-            <span>${total.toFixed(2)}</span>
+            <span>{formatGBP(total)}</span>
           </div>
         </div>
       </div>

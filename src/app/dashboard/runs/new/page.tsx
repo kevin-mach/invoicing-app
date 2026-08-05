@@ -12,7 +12,7 @@ export default function NewRunPage() {
     <div className="max-w-sm">
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">New run</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        You&apos;ll add vendor and customer stops after creating the run.
+        You&apos;ll add supplier and customer stops after creating the run.
       </p>
       <form action={formAction} className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
         <div>

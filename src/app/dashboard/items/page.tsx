@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus, Search, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
+import { formatGBP } from "@/lib/format";
 
 export default async function ItemsPage({
   searchParams,
@@ -118,7 +119,7 @@ export default async function ItemsPage({
                   {!item.is_active ? <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800">inactive</span> : null}
                 </td>
                 <td className="hidden px-4 py-3 text-slate-600 sm:table-cell dark:text-slate-400">{item.category}</td>
-                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">${item.sale_price.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(item.sale_price)}</td>
                 <td className="hidden px-4 py-3 text-right text-slate-600 sm:table-cell dark:text-slate-400">
                   {item.vat_rate}%
                 </td>

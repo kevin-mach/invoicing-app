@@ -46,9 +46,13 @@ export async function GET(
     }
   }
 
-  const suggestions = Array.from(stats.values())
-    .sort((a, b) => b.count - a.count || (b.lastDate > a.lastDate ? 1 : -1))
-    .slice(0, 10);
+  const all = Array.from(stats.values()).sort((a, b) => b.count - a.count || (b.lastDate > a.lastDate ? 1 : -1));
+  const suggestions = all.slice(0, 10);
 
-  return NextResponse.json({ suggestions });
+  // Full item_id -> last-paid-price map for this customer, so the invoice form can pre-fill the
+  // price this customer was last charged for ANY item, not just the top suggestion pills.
+  const prices: Record<string, number> = {};
+  for (const s of all) prices[s.item_id] = s.unit_price;
+
+  return NextResponse.json({ suggestions, prices });
 }

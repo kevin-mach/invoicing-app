@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
+import { formatGBP } from "@/lib/format";
 
 export default async function TemplatesPage() {
   const org = await getCurrentOrg();
@@ -33,7 +34,7 @@ export default async function TemplatesPage() {
             {pending.map((inv) => (
               <li key={inv.id}>
                 <Link href={`/dashboard/invoices/${inv.id}`} className="text-sm text-amber-900 underline dark:text-amber-200">
-                  {(inv.customers as unknown as { name: string } | null)?.name ?? "—"} — {inv.issue_date} — ${inv.total.toFixed(2)}
+                  {(inv.customers as unknown as { name: string } | null)?.name ?? "—"} — {inv.issue_date} — {formatGBP(inv.total)}
                 </Link>
               </li>
             ))}

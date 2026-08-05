@@ -6,6 +6,7 @@ import { InvoiceForm } from "@/components/invoice-form";
 import { updateInvoiceLineItems } from "../actions";
 import { InvoiceActions } from "./invoice-actions";
 import { PrintableInvoice } from "./printable-invoice";
+import { PdfShareActions } from "@/components/pdf-share-actions";
 
 export default async function InvoiceDetailPage({
   params,
@@ -38,8 +39,13 @@ export default async function InvoiceDetailPage({
         </h1>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
+        <PdfShareActions
+          targetId="invoice-print"
+          filename={`invoice-${invoice.number ?? invoice.id.slice(0, 8)}.pdf`}
+          title={`Invoice ${invoice.number ?? invoice.id.slice(0, 8)}`}
+        />
       </div>
 
       <div id="invoice-print" className="mt-4">

@@ -1,13 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { aggregateSales, type Granularity } from "@/lib/reports/sales";
+import { formatGBP } from "@/lib/format";
 
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customerId?: string; granularity?: string }>;
+  searchParams: Promise<{ customerId?: string; granularity?: string; fromDate?: string; toDate?: string }>;
 }) {
-  const { customerId, granularity: granularityParam } = await searchParams;
+  const { customerId, granularity: granularityParam, fromDate, toDate } = await searchParams;
   const granularity: Granularity =
     granularityParam === "day" || granularityParam === "year" ? granularityParam : "month";
 
@@ -25,6 +26,8 @@ export default async function ReportsPage({
         )
         .eq("invoices.org_id", org.orgId);
       if (customerId) q = q.eq("invoices.customer_id", customerId);
+      if (fromDate) q = q.gte("invoices.issue_date", fromDate);
+      if (toDate) q = q.lte("invoices.issue_date", toDate);
       return q;
     })(),
   ]);
@@ -74,6 +77,24 @@ export default async function ReportsPage({
           </select>
         </div>
         <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">From date</label>
+          <input
+            type="date"
+            name="fromDate"
+            defaultValue={fromDate ?? ""}
+            className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">To date</label>
+          <input
+            type="date"
+            name="toDate"
+            defaultValue={toDate ?? ""}
+            className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+        </div>
+        <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Group by</label>
           <select
             name="granularity"
@@ -93,21 +114,21 @@ export default async function ReportsPage({
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <p className="text-sm text-slate-500 dark:text-slate-400">Revenue</p>
-          <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">${totals.revenue.toFixed(2)}</p>
+          <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">{formatGBP(totals.revenue)}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <p className="text-sm text-slate-500 dark:text-slate-400">Cost</p>
-          <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">${totals.cost.toFixed(2)}</p>
+          <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">{formatGBP(totals.cost)}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <p className="text-sm text-slate-500 dark:text-slate-400">Profit</p>
           <p className={`text-xl font-semibold ${totals.profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-            ${totals.profit.toFixed(2)}
+            {formatGBP(totals.profit)}
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <p className="text-sm text-slate-500 dark:text-slate-400">VAT</p>
-          <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">${totals.vat.toFixed(2)}</p>
+          <p className="text-xl font-semibold text-slate-900 dark:text-slate-50">{formatGBP(totals.vat)}</p>
         </div>
       </div>
 
@@ -128,12 +149,12 @@ export default async function ReportsPage({
               <tr key={`${b.period}-${b.customerName}`} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                 <td className="px-4 py-3 text-slate-900 dark:text-slate-50">{b.period}</td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{b.customerName}</td>
-                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">${b.revenue.toFixed(2)}</td>
-                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">${b.cost.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(b.revenue)}</td>
+                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(b.cost)}</td>
                 <td className={`px-4 py-3 text-right font-medium ${b.profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                  ${b.profit.toFixed(2)}
+                  {formatGBP(b.profit)}
                 </td>
-                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">${b.vat.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(b.vat)}</td>
               </tr>
             ))}
             {!buckets.length ? (

@@ -26,7 +26,7 @@ export default async function VendorsPage({
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Vendors</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Suppliers</h1>
         <div className="flex items-center gap-2">
           <Link
             href="/dashboard/vendors/import"
@@ -49,7 +49,7 @@ export default async function VendorsPage({
           type="text"
           name="q"
           defaultValue={q ?? ""}
-          placeholder="Search vendors..."
+          placeholder="Search suppliers..."
           className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
         />
       </form>
@@ -78,7 +78,7 @@ export default async function VendorsPage({
             {!vendors?.length ? (
               <tr>
                 <td colSpan={3} className="px-4 py-8 text-center text-slate-400">
-                  No vendors yet.
+                  No suppliers yet.
                 </td>
               </tr>
             ) : null}

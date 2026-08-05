@@ -24,7 +24,7 @@ import { signOut } from "@/app/dashboard/actions";
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/customers", label: "Customers", icon: Users },
-  { href: "/dashboard/vendors", label: "Vendors", icon: Truck },
+  { href: "/dashboard/vendors", label: "Suppliers", icon: Truck },
   { href: "/dashboard/items", label: "Items", icon: Package },
   { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
   { href: "/dashboard/purchases", label: "Purchases", icon: ShoppingCart },

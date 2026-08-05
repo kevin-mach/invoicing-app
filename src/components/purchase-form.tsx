@@ -6,6 +6,7 @@ import type { PurchaseFormState, PurchaseLineItemInput } from "@/app/dashboard/p
 import type { ItemOption } from "@/lib/supabase/items";
 import { ReceiptScanner } from "@/components/receipt-scanner";
 import type { ParsedReceiptLine } from "@/lib/ocr/parse-lines";
+import { formatGBP } from "@/lib/format";
 
 type Vendor = { id: string; name: string };
 type Row = PurchaseLineItemInput & { key: string };
@@ -71,7 +72,7 @@ export function PurchaseForm({
 
       <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-2 dark:border-slate-800 dark:bg-slate-900">
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Vendor</label>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Supplier</label>
           <select
             name="vendor_id"
             required
@@ -79,7 +80,7 @@ export function PurchaseForm({
             onChange={(e) => setVendorId(e.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
           >
-            <option value="">Select a vendor...</option>
+            <option value="">Select a supplier...</option>
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -165,7 +166,7 @@ export function PurchaseForm({
                   />
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-50">
-                  ${(row.qty * row.unit_cost).toFixed(2)}
+                  {formatGBP(row.qty * row.unit_cost)}
                 </td>
                 <td className="px-3 py-2 text-right">
                   <button type="button" onClick={() => removeRow(row.key)} className="text-slate-400 hover:text-red-600">
@@ -189,7 +190,7 @@ export function PurchaseForm({
         <div className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex justify-between font-semibold text-slate-900 dark:text-slate-50">
             <span>Total cost</span>
-            <span>${total.toFixed(2)}</span>
+            <span>{formatGBP(total)}</span>
           </div>
         </div>
       </div>

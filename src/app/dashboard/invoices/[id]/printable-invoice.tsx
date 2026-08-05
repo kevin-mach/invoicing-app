@@ -1,3 +1,5 @@
+import { formatGBP } from "@/lib/format";
+
 type LineItem = {
   id: string;
   description: string;
@@ -75,9 +77,9 @@ export function PrintableInvoice({
             <tr key={li.id} className="border-b border-slate-100 dark:border-slate-800 print:text-black">
               <td className="py-2">{li.description}</td>
               <td className="py-2 text-right">{li.qty}</td>
-              <td className="py-2 text-right">${li.unit_price.toFixed(2)}</td>
+              <td className="py-2 text-right">{formatGBP(li.unit_price)}</td>
               <td className="py-2 text-right">{li.vat_rate ?? 0}%</td>
-              <td className="py-2 text-right">${(li.line_total ?? li.qty * li.unit_price).toFixed(2)}</td>
+              <td className="py-2 text-right">{formatGBP(li.line_total ?? li.qty * li.unit_price)}</td>
             </tr>
           ))}
         </tbody>
@@ -87,19 +89,19 @@ export function PrintableInvoice({
         <div className="w-full max-w-xs space-y-1 text-sm">
           <div className="flex justify-between text-slate-600 dark:text-slate-400 print:text-black">
             <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>{formatGBP(subtotal)}</span>
           </div>
           <div className="flex justify-between text-slate-600 dark:text-slate-400 print:text-black">
             <span>VAT</span>
-            <span>${vatTotal.toFixed(2)}</span>
+            <span>{formatGBP(vatTotal)}</span>
           </div>
           <div className="flex justify-between text-slate-600 dark:text-slate-400 print:text-black">
             <span>Tax</span>
-            <span>${tax.toFixed(2)}</span>
+            <span>{formatGBP(tax)}</span>
           </div>
           <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50 print:text-black">
             <span>Total</span>
-            <span>${total.toFixed(2)}</span>
+            <span>{formatGBP(total)}</span>
           </div>
         </div>
       </div>

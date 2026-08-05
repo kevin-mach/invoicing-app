@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Eye, EyeOff, Plus, ShoppingCart, FileText, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Eye, EyeOff, Plus, Search, ShoppingCart, FileText, Trash2 } from "lucide-react";
 import type { ItemOption } from "@/lib/supabase/items";
+import { UNIT_PRESETS } from "@/components/unit-field";
 import {
   saveChecklistItems,
   togglePriceVisible,
@@ -22,6 +23,7 @@ const emptyRow = (): Row => ({
   qty: 1,
   category: "real",
   unit_price: 0,
+  unit: "unit",
 });
 
 export function ChecklistEditor({
@@ -44,6 +46,7 @@ export function ChecklistEditor({
   );
   const [priceVisible, setPriceVisible] = useState(initialPriceVisible);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [search, setSearch] = useState("");
   const saveWithId = saveChecklistItems.bind(null, checklistId);
 
   const updateRow = (key: string, patch: Partial<Row>) =>
@@ -52,6 +55,30 @@ export function ChecklistEditor({
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
 
   const itemsById = new Map(items.map((i) => [i.id, i]));
+
+  const searchResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return items
+      .filter((i) => i.name.toLowerCase().includes(q) || i.item_code?.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [search, items]);
+
+  const addItem = (item: ItemOption) => {
+    setRows((prev) => [
+      ...prev.filter((r) => r.description.trim() || r.item_id),
+      {
+        key: crypto.randomUUID(),
+        item_id: item.id,
+        description: `${item.unit} of ${item.name}`,
+        qty: 1,
+        category: "real",
+        unit_price: stopType === "customer" ? item.sale_price : item.default_cost,
+        unit: item.unit,
+      },
+    ]);
+    setSearch("");
+  };
 
   useEffect(() => {
     if (!stopEntityId) return;
@@ -80,10 +107,11 @@ export function ChecklistEditor({
       {
         key: crypto.randomUUID(),
         item_id: s.item_id,
-        description: item?.name ?? s.description,
+        description: item ? `${item.unit} of ${item.name}` : s.description,
         qty: 1,
         category: "real",
         unit_price: s.unit_price,
+        unit: item?.unit ?? "unit",
       },
     ]);
   };
@@ -123,10 +151,43 @@ export function ChecklistEditor({
         </div>
       </div>
 
+      <div className="relative">
+        <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Search items to add
+        </label>
+        <div className="relative">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Type a name or code to quickly add an item..."
+            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 focus:border-slate-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+        </div>
+        {searchResults.length ? (
+          <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+            {searchResults.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => addItem(item)}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <span className="text-slate-900 dark:text-slate-50">
+                  {item.item_code ? `${item.item_code} - ` : ""}
+                  {item.name}
+                </span>
+                <span className="text-xs text-slate-400">Add</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
       {suggestions.length ? (
         <div>
           <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-            {stopType === "vendor" ? "Frequently picked up from this vendor" : "Frequently delivered to this customer"}
+            {stopType === "vendor" ? "Frequently picked up from this supplier" : "Frequently delivered to this customer"}
           </p>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((s) => (
@@ -153,6 +214,7 @@ export function ChecklistEditor({
                 <th className="px-3 py-2 font-medium">Item</th>
                 <th className="px-3 py-2 font-medium">Description</th>
                 <th className="w-20 px-3 py-2 text-right font-medium">Qty</th>
+                <th className="w-24 px-3 py-2 font-medium">Unit</th>
                 <th className="w-28 px-3 py-2 font-medium">Category</th>
                 {priceVisible ? <th className="w-24 px-3 py-2 text-right font-medium">Price</th> : null}
                 <th className="w-10 px-3 py-2" />
@@ -169,8 +231,9 @@ export function ChecklistEditor({
                         if (item) {
                           updateRow(row.key, {
                             item_id: item.id,
-                            description: item.name,
+                            description: `${item.unit} of ${item.name}`,
                             unit_price: stopType === "customer" ? item.sale_price : item.default_cost,
+                            unit: item.unit,
                           });
                         } else {
                           updateRow(row.key, { item_id: null });
@@ -202,6 +265,19 @@ export function ChecklistEditor({
                       onChange={(e) => updateRow(row.key, { qty: Number(e.target.value) || 0 })}
                       className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                     />
+                  </td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={row.unit}
+                      onChange={(e) => updateRow(row.key, { unit: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+                    >
+                      {UNIT_PRESETS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">

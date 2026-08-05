@@ -42,7 +42,7 @@ export default async function ChecklistPage({
         Checklist — {stopName ?? "—"}
       </h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 capitalize">
-        {runStop.stop_type === "vendor" ? "Pick up from vendor" : "Deliver to customer"}
+        {runStop.stop_type === "vendor" ? "Pick up from supplier" : "Deliver to customer"}
       </p>
 
       <div className="mt-6">
@@ -57,6 +57,7 @@ export default async function ChecklistPage({
             qty: i.qty,
             category: i.category as "real" | "cash",
             unit_price: i.unit_price,
+            unit: i.unit,
           }))}
           initialPriceVisible={checklist.price_visible}
         />

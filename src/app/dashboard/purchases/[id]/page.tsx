@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PurchaseActions } from "./purchase-actions";
+import { formatGBP } from "@/lib/format";
 
 export default async function PurchaseDetailPage({
   params,
@@ -47,14 +48,14 @@ export default async function PurchaseDetailPage({
               <tr key={li.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                 <td className="px-4 py-2">{li.description}</td>
                 <td className="px-4 py-2 text-right">{li.qty}</td>
-                <td className="px-4 py-2 text-right">${li.unit_cost.toFixed(2)}</td>
-                <td className="px-4 py-2 text-right">${(li.line_total ?? li.qty * li.unit_cost).toFixed(2)}</td>
+                <td className="px-4 py-2 text-right">{formatGBP(li.unit_cost)}</td>
+                <td className="px-4 py-2 text-right">{formatGBP(li.line_total ?? li.qty * li.unit_cost)}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <div className="flex justify-end border-t border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
-          Total: ${total.toFixed(2)}
+          Total: {formatGBP(total)}
         </div>
       </div>
 

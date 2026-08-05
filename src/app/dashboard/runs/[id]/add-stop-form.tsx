@@ -27,14 +27,14 @@ export function AddStopForm({
           onChange={(e) => setStopType(e.target.value as "vendor" | "customer")}
           className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
         >
-          <option value="vendor">Vendor (pick up)</option>
+          <option value="vendor">Supplier (pick up)</option>
           <option value="customer">Customer (deliver)</option>
         </select>
       </div>
       <input type="hidden" name="stop_type" value={stopType} />
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-          {stopType === "vendor" ? "Vendor" : "Customer"}
+          {stopType === "vendor" ? "Supplier" : "Customer"}
         </label>
         <select
           name="entity_id"

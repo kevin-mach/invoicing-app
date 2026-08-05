@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Download } from "lucide-react";
 import { parseSpreadsheetFile, mapRows, buildTemplateCsv, type ImportField, type ImportResult } from "@/lib/csv/parse";
+import { extractPdfLines, extractRowsFromPdfLines } from "@/lib/pdf/extract-rows";
 
 export function CsvImportForm({
   title,
@@ -33,6 +34,19 @@ export function CsvImportForm({
     setResult(null);
     setParseError(null);
     try {
+      if (file.name.toLowerCase().endsWith(".pdf")) {
+        const lines = await extractPdfLines(file);
+        const { rows: mapped, skippedCount } = extractRowsFromPdfLines(lines, fields);
+        setRows(mapped);
+        setSkippedCount(skippedCount);
+        if (!mapped.length) {
+          setParseError(
+            "No usable rows found in that PDF. This works best with text-based PDFs (e.g. price lists exported from a spreadsheet) — scanned/photographed PDFs may not have extractable text."
+          );
+        }
+        return;
+      }
+
       const raw = await parseSpreadsheetFile(file);
       const { rows: mapped, skippedCount } = mapRows(raw, fields);
       setRows(mapped);
@@ -43,7 +57,7 @@ export function CsvImportForm({
         );
       }
     } catch {
-      setParseError("Could not read that file. Make sure it's a .csv or .xlsx file.");
+      setParseError("Could not read that file. Make sure it's a .csv, .xlsx, or .pdf file.");
       setRows([]);
     }
   };
@@ -88,11 +102,11 @@ export function CsvImportForm({
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Choose a .csv or .xlsx file
+          Choose a .csv, .xlsx, or .pdf file
         </label>
         <input
           type="file"
-          accept=".csv,.xlsx,.xls"
+          accept=".csv,.xlsx,.xls,.pdf"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) handleFile(file);
@@ -100,7 +114,8 @@ export function CsvImportForm({
           className="mt-2 block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-700 dark:text-slate-400 dark:file:bg-slate-50 dark:file:text-slate-900"
         />
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Expected columns: {fields.map((f) => `${f.label}${f.required ? " (required)" : ""}`).join(", ")}
+          Expected columns: {fields.map((f) => `${f.label}${f.required ? " (required)" : ""}`).join(", ")}. For PDFs,
+          each line is read as one row — works best with text-based price lists.
         </p>
 
         {parseError ? (

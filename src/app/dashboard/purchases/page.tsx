@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
+import { formatGBP } from "@/lib/format";
 
 export default async function PurchasesPage() {
   const org = await getCurrentOrg();
@@ -30,7 +31,7 @@ export default async function PurchasesPage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
             <tr>
-              <th className="px-4 py-3 font-medium">Vendor</th>
+              <th className="px-4 py-3 font-medium">Supplier</th>
               <th className="hidden px-4 py-3 font-medium sm:table-cell">Date</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 text-right font-medium">Total cost</th>
@@ -53,7 +54,7 @@ export default async function PurchasesPage() {
                       {p.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">${total.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(total)}</td>
                 </tr>
               );
             })}

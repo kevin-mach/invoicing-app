@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { FileDown, Sheet } from "lucide-react";
+import { useState } from "react";
+import { Printer, Sheet } from "lucide-react";
+import { formatGBP } from "@/lib/format";
+import { PdfShareActions } from "@/components/pdf-share-actions";
 
 export type RunReportLine = {
   type: "purchase" | "invoice" | "cash";
@@ -32,28 +34,10 @@ export function RunReportExport({
   totalRevenue: number;
   totalCash: number;
 }) {
-  const reportRef = useRef<HTMLDivElement>(null);
-  const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
-
-  const exportPdf = async () => {
-    if (!reportRef.current) return;
-    setExporting("pdf");
-    try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
-      const canvas = await html2canvas(reportRef.current, { backgroundColor: "#ffffff", scale: 2 });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const imgHeight = (canvas.height * pageWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pageWidth, imgHeight);
-      pdf.save(`run-${runDate}.pdf`);
-    } finally {
-      setExporting(null);
-    }
-  };
+  const [exporting, setExporting] = useState(false);
 
   const exportExcel = async () => {
-    setExporting("excel");
+    setExporting(true);
     try {
       const XLSX = await import("xlsx");
       const rows = [
@@ -72,30 +56,30 @@ export function RunReportExport({
       XLSX.utils.book_append_sheet(workbook, worksheet, "Run Report");
       XLSX.writeFile(workbook, `run-${runDate}.xlsx`);
     } finally {
-      setExporting(null);
+      setExporting(false);
     }
   };
 
   return (
     <div>
-      <div className="mt-4 flex gap-2">
+      <div className="no-print mt-4 flex flex-wrap items-center gap-2">
         <button
-          onClick={exportPdf}
-          disabled={exporting !== null}
-          className="flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-50 dark:text-slate-900"
+          onClick={() => window.print()}
+          className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
         >
-          <FileDown size={16} /> {exporting === "pdf" ? "Exporting..." : "Export PDF"}
+          <Printer size={16} /> Print
         </button>
+        <PdfShareActions targetId="run-report" filename={`run-${runDate}.pdf`} title={`Run report — ${runDate}`} />
         <button
           onClick={exportExcel}
-          disabled={exporting !== null}
+          disabled={exporting}
           className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
         >
-          <Sheet size={16} /> {exporting === "excel" ? "Exporting..." : "Export Excel"}
+          <Sheet size={16} /> {exporting ? "Exporting..." : "Export Excel"}
         </button>
       </div>
 
-      <div ref={reportRef} className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+      <div id="run-report" className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">{orgName}</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">Run report — {runDate}</p>
 
@@ -116,7 +100,7 @@ export function RunReportExport({
                 <td className="py-2">{l.entity}</td>
                 <td className="py-2">{l.description}</td>
                 <td className="py-2 text-right">{l.qty}</td>
-                <td className="py-2 text-right">${l.amount.toFixed(2)}</td>
+                <td className="py-2 text-right">{formatGBP(l.amount)}</td>
               </tr>
             ))}
             {!lines.length ? (
@@ -133,19 +117,19 @@ export function RunReportExport({
           <div className="w-full max-w-xs space-y-1 text-sm">
             <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>Total cost</span>
-              <span>${totalCost.toFixed(2)}</span>
+              <span>{formatGBP(totalCost)}</span>
             </div>
             <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>Total revenue</span>
-              <span>${totalRevenue.toFixed(2)}</span>
+              <span>{formatGBP(totalRevenue)}</span>
             </div>
             <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>Cash items</span>
-              <span>${totalCash.toFixed(2)}</span>
+              <span>{formatGBP(totalCash)}</span>
             </div>
             <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
               <span>Profit</span>
-              <span>${(totalRevenue - totalCost).toFixed(2)}</span>
+              <span>{formatGBP(totalRevenue - totalCost)}</span>
             </div>
           </div>
         </div>

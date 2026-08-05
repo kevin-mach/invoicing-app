@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, FileStack } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
+import { formatGBP } from "@/lib/format";
 
 const statusStyles: Record<string, string> = {
   draft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
@@ -25,12 +26,20 @@ export default async function InvoicesPage() {
     <div>
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Invoices</h1>
-        <Link
-          href="/dashboard/invoices/new"
-          className="flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-50 dark:text-slate-900"
-        >
-          <Plus size={16} /> New
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/invoices/daily"
+            className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <FileStack size={16} /> Daily report
+          </Link>
+          <Link
+            href="/dashboard/invoices/new"
+            className="flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-50 dark:text-slate-900"
+          >
+            <Plus size={16} /> New
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -57,7 +66,7 @@ export default async function InvoicesPage() {
                     {inv.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">${inv.total.toFixed(2)}</td>
+                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(inv.total)}</td>
               </tr>
             ))}
             {!invoices?.length ? (

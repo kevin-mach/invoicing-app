@@ -22,7 +22,7 @@ export default async function DashboardHome() {
 
   const cards = [
     { label: "Customers", value: customerCount ?? 0, href: "/dashboard/customers" },
-    { label: "Vendors", value: vendorCount ?? 0, href: "/dashboard/vendors" },
+    { label: "Suppliers", value: vendorCount ?? 0, href: "/dashboard/vendors" },
     { label: "Items", value: itemCount ?? 0, href: "/dashboard/items" },
     { label: "Draft invoices", value: draftInvoiceCount ?? 0, href: "/dashboard/invoices" },
   ];
@@ -54,7 +54,7 @@ export default async function DashboardHome() {
         >
           <div className="font-medium text-slate-900 dark:text-slate-50">Plan a run</div>
           <div className="text-sm text-slate-500 dark:text-slate-400">
-            Add vendor and customer stops, build checklists
+            Add supplier and customer stops, build checklists
           </div>
         </Link>
         <Link

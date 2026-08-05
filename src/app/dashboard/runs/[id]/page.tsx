@@ -80,7 +80,7 @@ export default async function RunDetailPage({
         })}
         {!stops?.length ? (
           <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-400 dark:border-slate-700">
-            No stops yet. Add a vendor or customer stop below.
+            No stops yet. Add a supplier or customer stop below.
           </p>
         ) : null}
       </div>

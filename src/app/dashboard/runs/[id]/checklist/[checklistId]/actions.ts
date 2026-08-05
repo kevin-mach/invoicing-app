@@ -12,6 +12,7 @@ export type ChecklistItemInput = {
   qty: number;
   category: "real" | "cash";
   unit_price: number;
+  unit: string;
 };
 
 function parseChecklistItems(raw: string): ChecklistItemInput[] {
@@ -35,6 +36,7 @@ async function persistChecklistItems(checklistId: string, items: ChecklistItemIn
         qty: i.qty,
         category: i.category,
         unit_price: i.unit_price,
+        unit: i.unit,
         sort_order: idx,
       }))
     );
@@ -69,11 +71,15 @@ export async function convertChecklistToPurchase(checklistId: string, currentIte
   const supabase = await createClient();
   const { data: checklist } = await supabase
     .from("checklists")
-    .select("run_stop_id, run_stops(run_id, vendor_id)")
+    .select("run_stop_id, run_stops(run_id, vendor_id, runs(run_date))")
     .eq("id", checklistId)
     .maybeSingle();
 
-  const runStop = checklist?.run_stops as unknown as { run_id: string; vendor_id: string | null } | null;
+  const runStop = checklist?.run_stops as unknown as {
+    run_id: string;
+    vendor_id: string | null;
+    runs: { run_date: string } | null;
+  } | null;
   if (!runStop?.vendor_id) return;
 
   const items = currentItems.filter((i) => i.category === "real");
@@ -81,7 +87,12 @@ export async function convertChecklistToPurchase(checklistId: string, currentIte
 
   const { data: purchase } = await supabase
     .from("purchases")
-    .insert({ org_id: org.orgId, vendor_id: runStop.vendor_id, run_id: runStop.run_id })
+    .insert({
+      org_id: org.orgId,
+      vendor_id: runStop.vendor_id,
+      run_id: runStop.run_id,
+      ...(runStop.runs?.run_date ? { purchase_date: runStop.runs.run_date } : {}),
+    })
     .select("id")
     .single();
 
@@ -109,11 +120,15 @@ export async function convertChecklistToInvoice(checklistId: string, currentItem
   const supabase = await createClient();
   const { data: checklist } = await supabase
     .from("checklists")
-    .select("run_stop_id, run_stops(run_id, customer_id)")
+    .select("run_stop_id, run_stops(run_id, customer_id, runs(run_date))")
     .eq("id", checklistId)
     .maybeSingle();
 
-  const runStop = checklist?.run_stops as unknown as { run_id: string; customer_id: string | null } | null;
+  const runStop = checklist?.run_stops as unknown as {
+    run_id: string;
+    customer_id: string | null;
+    runs: { run_date: string } | null;
+  } | null;
   if (!runStop?.customer_id) return;
 
   const items = currentItems.filter((i) => i.category === "real");
@@ -121,10 +136,16 @@ export async function convertChecklistToInvoice(checklistId: string, currentItem
 
   const catalog = await getItemsWithDefaultCost(org.orgId);
   const costByItemId = new Map(catalog.map((c) => [c.id, c.default_cost]));
+  const vatRateByItemId = new Map(catalog.map((c) => [c.id, c.vat_rate]));
 
   const { data: invoice } = await supabase
     .from("invoices")
-    .insert({ org_id: org.orgId, customer_id: runStop.customer_id, run_id: runStop.run_id })
+    .insert({
+      org_id: org.orgId,
+      customer_id: runStop.customer_id,
+      run_id: runStop.run_id,
+      ...(runStop.runs?.run_date ? { issue_date: runStop.runs.run_date } : {}),
+    })
     .select("id")
     .single();
 
@@ -138,6 +159,7 @@ export async function convertChecklistToInvoice(checklistId: string, currentItem
       qty: i.qty,
       unit_price: i.unit_price,
       unit_cost: i.item_id ? costByItemId.get(i.item_id) ?? 0 : 0,
+      vat_rate: i.item_id ? vatRateByItemId.get(i.item_id) ?? 20 : 20,
       sort_order: idx,
     }))
   );

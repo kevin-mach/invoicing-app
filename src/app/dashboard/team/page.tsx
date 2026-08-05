@@ -18,7 +18,7 @@ export default async function TeamPage() {
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Team</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         {memberCount} of {org.maxUsers} seats used on the {`${TIERS[org.subscriptionTier].label} plan`}. Every
-        team member can see all of this organization&apos;s invoices, runs, vendors, customers, and items — except
+        team member can see all of this organization&apos;s invoices, runs, suppliers, customers, and items — except
         bookkeepers, who only see the Reports page, and everyone but the owner is kept out of Reports.
       </p>
 
