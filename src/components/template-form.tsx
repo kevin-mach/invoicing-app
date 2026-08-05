@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { TemplateFormState, TemplateLineItemInput } from "@/app/dashboard/templates/actions";
 import type { ItemOption } from "@/lib/supabase/items";
+import { DateInput } from "@/components/date-input";
 
 type Customer = { id: string; name: string };
 type Row = TemplateLineItemInput & { key: string };
@@ -73,8 +74,7 @@ export function TemplateForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Next run date</label>
-          <input
-            type="date"
+          <DateInput
             name="next_run_date"
             required
             defaultValue={initialNextRunDate ?? ""}

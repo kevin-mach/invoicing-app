@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { InvoiceFormState, LineItemInput } from "@/app/dashboard/invoices/actions";
 import type { ItemOption } from "@/lib/supabase/items";
 import { formatGBP } from "@/lib/format";
+import { DateInput } from "@/components/date-input";
 
 type Customer = { id: string; name: string };
 
@@ -134,8 +135,7 @@ export function InvoiceForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Due date</label>
-          <input
-            type="date"
+          <DateInput
             name="due_date"
             defaultValue={initialDueDate ?? ""}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"

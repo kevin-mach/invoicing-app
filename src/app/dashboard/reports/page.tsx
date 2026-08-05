@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { aggregateSales, type Granularity } from "@/lib/reports/sales";
 import { formatGBP } from "@/lib/format";
+import { DateInput } from "@/components/date-input";
 
 export default async function ReportsPage({
   searchParams,
@@ -78,8 +79,7 @@ export default async function ReportsPage({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">From date</label>
-          <input
-            type="date"
+          <DateInput
             name="fromDate"
             defaultValue={fromDate ?? ""}
             className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
@@ -87,8 +87,7 @@ export default async function ReportsPage({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">To date</label>
-          <input
-            type="date"
+          <DateInput
             name="toDate"
             defaultValue={toDate ?? ""}
             className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"

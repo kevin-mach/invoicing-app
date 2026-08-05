@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createRun, type RunFormState } from "../actions";
+import { DateInput } from "@/components/date-input";
 
 const initialState: RunFormState = { error: null };
 
@@ -17,8 +18,7 @@ export default function NewRunPage() {
       <form action={formAction} className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Date</label>
-          <input
-            type="date"
+          <DateInput
             name="run_date"
             defaultValue={new Date().toISOString().slice(0, 10)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"

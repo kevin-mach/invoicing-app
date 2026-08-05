@@ -17,7 +17,7 @@ async function renderToPdfBlob(targetId: string): Promise<Blob> {
   const el = document.getElementById(targetId);
   if (!el) throw new Error("Nothing to export");
 
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas-pro"), import("jspdf")]);
   const canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2 });
   const imgData = canvas.toDataURL("image/png");
   const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
@@ -58,7 +58,8 @@ export function PdfShareActions({ targetId, filename, title }: { targetId: strin
     try {
       const blob = await renderToPdfBlob(targetId);
       downloadBlob(blob, filename);
-    } catch {
+    } catch (err) {
+      console.error("PDF download failed:", err);
       setError("Could not generate the PDF. Try again.");
     } finally {
       setBusy(null);
@@ -79,6 +80,7 @@ export function PdfShareActions({ targetId, filename, title }: { targetId: strin
       }
     } catch (err) {
       if (!(err instanceof Error && err.name === "AbortError")) {
+        console.error("PDF share failed:", err);
         setError("Could not share the PDF. Try again.");
       }
     } finally {

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { DailyReportActions } from "./daily-report-actions";
 import { formatGBP } from "@/lib/format";
+import { DateInput } from "@/components/date-input";
 
 export default async function DailyInvoiceReportPage({
   searchParams,
@@ -59,8 +60,7 @@ export default async function DailyInvoiceReportPage({
       <form className="no-print mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Date</label>
-          <input
-            type="date"
+          <DateInput
             name="date"
             defaultValue={reportDate}
             className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
