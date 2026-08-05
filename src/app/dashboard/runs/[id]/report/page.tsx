@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
-import { RunReportExport, type RunReportLine, type CustomerPickListStop } from "./run-report-export";
+import { getItemsWithDefaultCost } from "@/lib/supabase/items";
+import { RunReportExport, type RunReportLine } from "./run-report-export";
+import type { CustomerStopData } from "../stock-sheet/stock-sheet-builder";
 
 export default async function RunReportPage({
   params,
@@ -13,37 +15,46 @@ export default async function RunReportPage({
   if (!org) return null;
 
   const supabase = await createClient();
-  const [{ data: run }, { data: purchases }, { data: invoices }, { data: checklistItems }, { data: customerStopRows }] =
-    await Promise.all([
-      supabase.from("runs").select("*").eq("id", id).maybeSingle(),
-      supabase
-        .from("purchases")
-        .select("id, vendors(name), purchase_line_items(description, qty, unit_cost)")
-        .eq("run_id", id),
-      supabase
-        .from("invoices")
-        .select("id, customers(name), invoice_line_items(description, qty, unit_price)")
-        .eq("run_id", id),
-      supabase
-        .from("checklist_items")
-        .select("description, qty, category, unit_price, checklists(run_stops(run_id, vendors(name), customers(name)))")
-        .eq("category", "cash"),
-      supabase
-        .from("run_stops")
-        .select("customers(name), checklists(checklist_items(description, qty, unit))")
-        .eq("run_id", id)
-        .eq("stop_type", "customer"),
-    ]);
+  const [
+    { data: run },
+    { data: purchases },
+    { data: invoices },
+    { data: checklistItems },
+    { data: customerStopRows },
+    { data: vendors },
+    items,
+  ] = await Promise.all([
+    supabase.from("runs").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("purchases")
+      .select("id, vendors(name), purchase_line_items(description, qty, unit_cost)")
+      .eq("run_id", id),
+    supabase
+      .from("invoices")
+      .select("id, customers(name), invoice_line_items(description, qty, unit_price)")
+      .eq("run_id", id),
+    supabase
+      .from("checklist_items")
+      .select("description, qty, category, unit_price, checklists(run_stops(run_id, vendors(name), customers(name)))")
+      .eq("category", "cash"),
+    supabase
+      .from("run_stops")
+      .select("id, customers(name), checklists(checklist_items(item_id, description, qty, unit))")
+      .eq("run_id", id)
+      .eq("stop_type", "customer"),
+    supabase.from("vendors").select("id, name").eq("org_id", org.orgId).order("name"),
+    getItemsWithDefaultCost(org.orgId),
+  ]);
 
   if (!run) notFound();
 
-  const customerStops: CustomerPickListStop[] = (customerStopRows ?? [])
+  const customerStops: CustomerStopData[] = (customerStopRows ?? [])
     .map((stop) => {
       const customerName = (stop.customers as unknown as { name: string } | null)?.name ?? "—";
       const checklist = stop.checklists as unknown as {
-        checklist_items: { description: string; qty: number; unit: string }[];
+        checklist_items: { item_id: string | null; description: string; qty: number; unit: string }[];
       } | null;
-      return { customerName, items: checklist?.checklist_items ?? [] };
+      return { stopId: stop.id, customerName, items: checklist?.checklist_items ?? [] };
     })
     .filter((stop) => stop.items.length > 0);
 
@@ -93,13 +104,15 @@ export default async function RunReportPage({
   const totalCash = cashLines.reduce((s, l) => s + l.amount, 0);
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-4xl">
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Condensed report — {run.run_date}</h1>
 
       <RunReportExport
         runDate={run.run_date}
         orgName={org.orgName}
         customerStops={customerStops}
+        vendors={vendors ?? []}
+        items={items}
         lines={[...lines, ...cashLines]}
         totalCost={totalCost}
         totalRevenue={totalRevenue}

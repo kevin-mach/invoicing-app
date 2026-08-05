@@ -264,7 +264,16 @@ export function StockSheetBuilder({
           <div id={printId} className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
             <p className="text-sm text-slate-900 dark:text-slate-50">{runDate}</p>
 
-            <div className="mt-4 columns-1 gap-8 sm:columns-2 lg:columns-3">
+            <div className="mt-4 break-inside-avoid">
+              <p className="font-bold text-slate-900 underline dark:text-slate-50">Item totals</p>
+              {aggregated.map((item) => (
+                <p key={item.key} className="text-sm text-slate-800 dark:text-slate-200">
+                  {item.totalNeeded} {item.unit} {item.name}
+                </p>
+              ))}
+            </div>
+
+            <div className="mt-6 columns-1 gap-8 sm:columns-2 lg:columns-3">
               {byVendor.map((v) => {
                 const zoneEntries = Array.from(v.byZone.entries());
                 const multiZone = zoneEntries.length > 1;
