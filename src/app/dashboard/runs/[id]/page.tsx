@@ -32,13 +32,21 @@ export default async function RunDetailPage({
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Run — {run.run_date}</h1>
-        <Link
-          href={`/dashboard/runs/${run.id}/report`}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-        >
-          Condensed report
-        </Link>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Stock Sheet — {run.run_date}</h1>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/runs/${run.id}/stock-sheet`}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Stock count
+          </Link>
+          <Link
+            href={`/dashboard/runs/${run.id}/report`}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Condensed report
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4">

@@ -508,6 +508,92 @@ export type Database = {
           },
         ]
       }
+      quote_line_items: {
+        Row: {
+          description: string
+          id: string
+          item_id: string | null
+          line_total: number | null
+          qty: number
+          quote_id: string
+          sort_order: number
+          unit_price: number
+        }
+        Insert: {
+          description: string
+          id?: string
+          item_id?: string | null
+          line_total?: number | null
+          qty?: number
+          quote_id: string
+          sort_order?: number
+          unit_price?: number
+        }
+        Update: {
+          description?: string
+          id?: string
+          item_id?: string | null
+          line_total?: number | null
+          qty?: number
+          quote_id?: string
+          sort_order?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_line_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          created_at: string
+          id: string
+          issue_date: string
+          notes: string | null
+          org_id: string
+          recipient_contact: string | null
+          recipient_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issue_date?: string
+          notes?: string | null
+          org_id: string
+          recipient_contact?: string | null
+          recipient_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issue_date?: string
+          notes?: string | null
+          org_id?: string
+          recipient_contact?: string | null
+          recipient_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       receipt_scans: {
         Row: {
           created_at: string

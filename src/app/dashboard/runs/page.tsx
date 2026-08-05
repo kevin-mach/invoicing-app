@@ -17,7 +17,7 @@ export default async function RunsPage() {
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Runs</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Stock Sheets</h1>
         <Link
           href="/dashboard/runs/new"
           className="flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-50 dark:text-slate-900"
@@ -56,7 +56,7 @@ export default async function RunsPage() {
             {!runs?.length ? (
               <tr>
                 <td colSpan={3} className="px-4 py-8 text-center text-slate-400">
-                  No runs yet.
+                  No stock sheets yet.
                 </td>
               </tr>
             ) : null}

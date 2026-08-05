@@ -78,7 +78,7 @@ export default async function RunReportPage({
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Run report — {run.run_date}</h1>
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Stock sheet report — {run.run_date}</h1>
 
       <RunReportExport
         runDate={run.run_date}

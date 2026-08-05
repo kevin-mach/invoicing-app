@@ -23,11 +23,11 @@ export function RunStatusActions({ runId, status }: { runId: string; status: str
       ))}
       <button
         onClick={() => {
-          if (confirm("Delete this run? This cannot be undone.")) deleteRun(runId);
+          if (confirm("Delete this stock sheet? This cannot be undone.")) deleteRun(runId);
         }}
         className="ml-auto flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
       >
-        <Trash2 size={16} /> Delete run
+        <Trash2 size={16} /> Delete stock sheet
       </button>
     </div>
   );

@@ -32,12 +32,12 @@ export const YEARLY_SAVINGS_NOTE = "2 months free — save 17% vs. monthly";
 export const DEFAULT_TIER: TierKey = "starter";
 
 export const PLAN_FEATURES = [
-  "Unlimited customers, vendors, and items",
+  "Unlimited customers, suppliers, and items",
   "Invoicing with editable pricing and item suggestions",
   "Purchases with camera receipt scanning (OCR)",
-  "Run planning and pick-list checklists",
+  "Stock sheet planning and pick-list checklists",
   "Recurring invoice templates",
   "Sales, cost, and profit reporting",
   "Spreadsheet import for your existing data",
-  "Every team member sees all of the organisation's invoices, runs, vendors, customers, and items",
+  "Every team member sees all of the organisation's invoices, stock sheets, suppliers, customers, and items",
 ];

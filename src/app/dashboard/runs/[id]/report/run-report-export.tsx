@@ -41,7 +41,7 @@ export function RunReportExport({
     try {
       const XLSX = await import("xlsx");
       const rows = [
-        ["Run report", runDate, orgName],
+        ["Stock sheet report", runDate, orgName],
         [],
         ["Type", "Entity", "Description", "Qty", "Amount"],
         ...lines.map((l) => [typeLabel[l.type], l.entity, l.description, l.qty, l.amount]),
@@ -53,7 +53,7 @@ export function RunReportExport({
       ];
       const worksheet = XLSX.utils.aoa_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Run Report");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Sheet Report");
       XLSX.writeFile(workbook, `run-${runDate}.xlsx`);
     } finally {
       setExporting(false);
@@ -69,7 +69,7 @@ export function RunReportExport({
         >
           <Printer size={16} /> Print
         </button>
-        <PdfShareActions targetId="run-report" filename={`run-${runDate}.pdf`} title={`Run report — ${runDate}`} />
+        <PdfShareActions targetId="run-report" filename={`run-${runDate}.pdf`} title={`Stock sheet report — ${runDate}`} />
         <button
           onClick={exportExcel}
           disabled={exporting}
@@ -81,7 +81,7 @@ export function RunReportExport({
 
       <div id="run-report" className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">{orgName}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Run report — {runDate}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Stock sheet report — {runDate}</p>
 
         <table className="mt-4 w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -106,7 +106,7 @@ export function RunReportExport({
             {!lines.length ? (
               <tr>
                 <td colSpan={5} className="py-6 text-center text-slate-400">
-                  No purchases or invoices recorded for this run yet.
+                  No purchases or invoices recorded for this stock sheet yet.
                 </td>
               </tr>
             ) : null}
