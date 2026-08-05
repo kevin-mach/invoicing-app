@@ -13,6 +13,11 @@ export type RunReportLine = {
   amount: number;
 };
 
+export type CustomerPickListStop = {
+  customerName: string;
+  items: { description: string; qty: number; unit: string }[];
+};
+
 const typeLabel: Record<RunReportLine["type"], string> = {
   purchase: "Purchase (cost)",
   invoice: "Invoice (revenue)",
@@ -22,6 +27,7 @@ const typeLabel: Record<RunReportLine["type"], string> = {
 export function RunReportExport({
   runDate,
   orgName,
+  customerStops,
   lines,
   totalCost,
   totalRevenue,
@@ -29,20 +35,26 @@ export function RunReportExport({
 }: {
   runDate: string;
   orgName: string;
+  customerStops: CustomerPickListStop[];
   lines: RunReportLine[];
   totalCost: number;
   totalRevenue: number;
   totalCash: number;
 }) {
   const [exporting, setExporting] = useState(false);
+  const [routeLabel, setRouteLabel] = useState("");
 
   const exportExcel = async () => {
     setExporting(true);
     try {
       const XLSX = await import("xlsx");
       const rows = [
-        ["Stock sheet report", runDate, orgName],
+        ["Condensed report", runDate, orgName],
         [],
+        ["Customer", "Item", "Qty", "Unit"],
+        ...customerStops.flatMap((s) => s.items.map((li) => [s.customerName, li.description, li.qty, li.unit])),
+        [],
+        ["Financial summary"],
         ["Type", "Entity", "Description", "Qty", "Amount"],
         ...lines.map((l) => [typeLabel[l.type], l.entity, l.description, l.qty, l.amount]),
         [],
@@ -53,23 +65,43 @@ export function RunReportExport({
       ];
       const worksheet = XLSX.utils.aoa_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Sheet Report");
-      XLSX.writeFile(workbook, `run-${runDate}.xlsx`);
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Condensed Report");
+      XLSX.writeFile(workbook, `condensed-report-${runDate}.xlsx`);
     } finally {
       setExporting(false);
     }
   };
 
+  const title = routeLabel.trim() ? `${runDate} ${routeLabel.trim()}` : runDate;
+
   return (
     <div>
-      <div className="no-print mt-4 flex flex-wrap items-center gap-2">
+      <div className="no-print mt-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Route / area label (optional, shown on the sheet)
+          </label>
+          <input
+            value={routeLabel}
+            onChange={(e) => setRouteLabel(e.target.value)}
+            placeholder="e.g. OXFORD"
+            className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+        </div>
+      </div>
+
+      <div className="no-print mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={() => window.print()}
           className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
         >
           <Printer size={16} /> Print
         </button>
-        <PdfShareActions targetId="run-report" filename={`run-${runDate}.pdf`} title={`Stock sheet report — ${runDate}`} />
+        <PdfShareActions
+          targetId="run-report"
+          filename={`condensed-report-${runDate}${routeLabel.trim() ? `-${routeLabel.trim().replace(/\s+/g, "-").toLowerCase()}` : ""}.pdf`}
+          title={`Condensed report — ${title}`}
+        />
         <button
           onClick={exportExcel}
           disabled={exporting}
@@ -80,10 +112,31 @@ export function RunReportExport({
       </div>
 
       <div id="run-report" className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">{orgName}</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Stock sheet report — {runDate}</p>
+        <p className="text-sm text-slate-900 dark:text-slate-50">
+          {title}
+        </p>
 
-        <table className="mt-4 w-full text-left text-sm">
+        {customerStops.length ? (
+          <div className="mt-4 columns-1 gap-8 sm:columns-2 lg:columns-3">
+            {customerStops.map((stop) => (
+              <div key={stop.customerName} className="mb-6 break-inside-avoid">
+                <p className="font-bold text-slate-900 underline dark:text-slate-50">{stop.customerName}</p>
+                {stop.items.map((li, i) => (
+                  <p key={i} className="text-sm text-slate-800 dark:text-slate-200">
+                    {li.qty} {li.unit} {li.description}
+                  </p>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-400">No customer orders recorded for this stock sheet yet.</p>
+        )}
+      </div>
+
+      <div className="no-print mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Financial summary (screen only)</h3>
+        <table className="mt-3 w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
             <tr>
               <th className="py-2 font-medium">Type</th>

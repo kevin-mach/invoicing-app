@@ -50,7 +50,6 @@ export default async function StockSheetPage({
       </p>
 
       <StockSheetBuilder
-        orgName={org.orgName}
         runDate={run.run_date}
         customerStops={customerStops}
         vendors={vendors ?? []}

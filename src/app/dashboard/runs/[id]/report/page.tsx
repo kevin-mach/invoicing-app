@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
-import { RunReportExport, type RunReportLine } from "./run-report-export";
+import { RunReportExport, type RunReportLine, type CustomerPickListStop } from "./run-report-export";
 
 export default async function RunReportPage({
   params,
@@ -13,23 +13,39 @@ export default async function RunReportPage({
   if (!org) return null;
 
   const supabase = await createClient();
-  const [{ data: run }, { data: purchases }, { data: invoices }, { data: checklistItems }] = await Promise.all([
-    supabase.from("runs").select("*").eq("id", id).maybeSingle(),
-    supabase
-      .from("purchases")
-      .select("id, vendors(name), purchase_line_items(description, qty, unit_cost)")
-      .eq("run_id", id),
-    supabase
-      .from("invoices")
-      .select("id, customers(name), invoice_line_items(description, qty, unit_price)")
-      .eq("run_id", id),
-    supabase
-      .from("checklist_items")
-      .select("description, qty, category, unit_price, checklists(run_stops(run_id, vendors(name), customers(name)))")
-      .eq("category", "cash"),
-  ]);
+  const [{ data: run }, { data: purchases }, { data: invoices }, { data: checklistItems }, { data: customerStopRows }] =
+    await Promise.all([
+      supabase.from("runs").select("*").eq("id", id).maybeSingle(),
+      supabase
+        .from("purchases")
+        .select("id, vendors(name), purchase_line_items(description, qty, unit_cost)")
+        .eq("run_id", id),
+      supabase
+        .from("invoices")
+        .select("id, customers(name), invoice_line_items(description, qty, unit_price)")
+        .eq("run_id", id),
+      supabase
+        .from("checklist_items")
+        .select("description, qty, category, unit_price, checklists(run_stops(run_id, vendors(name), customers(name)))")
+        .eq("category", "cash"),
+      supabase
+        .from("run_stops")
+        .select("customers(name), checklists(checklist_items(description, qty, unit))")
+        .eq("run_id", id)
+        .eq("stop_type", "customer"),
+    ]);
 
   if (!run) notFound();
+
+  const customerStops: CustomerPickListStop[] = (customerStopRows ?? [])
+    .map((stop) => {
+      const customerName = (stop.customers as unknown as { name: string } | null)?.name ?? "—";
+      const checklist = stop.checklists as unknown as {
+        checklist_items: { description: string; qty: number; unit: string }[];
+      } | null;
+      return { customerName, items: checklist?.checklist_items ?? [] };
+    })
+    .filter((stop) => stop.items.length > 0);
 
   const lines: RunReportLine[] = [];
 
@@ -78,11 +94,12 @@ export default async function RunReportPage({
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Stock sheet report — {run.run_date}</h1>
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Condensed report — {run.run_date}</h1>
 
       <RunReportExport
         runDate={run.run_date}
         orgName={org.orgName}
+        customerStops={customerStops}
         lines={[...lines, ...cashLines]}
         totalCost={totalCost}
         totalRevenue={totalRevenue}

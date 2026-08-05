@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2, Printer } from "lucide-react";
 import type { ItemOption } from "@/lib/supabase/items";
-import { formatGBP } from "@/lib/format";
 import { PdfShareActions } from "@/components/pdf-share-actions";
 
 type Vendor = { id: string; name: string };
@@ -26,13 +25,11 @@ type AggregatedItem = {
 type AllocationRow = { key: string; itemKey: string; vendorId: string; qty: number };
 
 export function StockSheetBuilder({
-  orgName,
   runDate,
   customerStops,
   vendors,
   items,
 }: {
-  orgName: string;
   runDate: string;
   customerStops: CustomerStopData[];
   vendors: Vendor[];
@@ -122,8 +119,6 @@ export function StockSheetBuilder({
     }
     return Array.from(map.values());
   }, [visibleAllocations, aggregated, vendorsById]);
-
-  const grandTotal = byVendor.reduce((sum, v) => sum + v.rows.reduce((s, r) => s + r.qty * r.unitCost, 0), 0);
 
   const sheetTitle = listName.trim() ? `${runDate} — ${listName.trim()}` : runDate;
   const printId = "stock-sheet-print";
@@ -260,46 +255,20 @@ export function StockSheetBuilder({
           </div>
 
           <div id={printId} className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">{orgName}</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Stock sheet — {sheetTitle}</p>
+            <p className="text-sm text-slate-900 dark:text-slate-50">{sheetTitle}</p>
 
-            {byVendor.map((v) => {
-              const vendorTotal = v.rows.reduce((s, r) => s + r.qty * r.unitCost, 0);
-              return (
-                <div key={v.vendorName} className="mt-6">
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-50">{v.vendorName}</h3>
-                  <table className="mt-2 w-full text-left text-sm">
-                    <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                      <tr>
-                        <th className="py-1.5 font-medium">Item</th>
-                        <th className="py-1.5 text-right font-medium">Qty</th>
-                        <th className="py-1.5 font-medium">Unit</th>
-                        <th className="py-1.5 text-right font-medium">Unit price</th>
-                        <th className="py-1.5 text-right font-medium">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {v.rows.map((r, i) => (
-                        <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
-                          <td className="py-1.5">{r.name}</td>
-                          <td className="py-1.5 text-right">{r.qty}</td>
-                          <td className="py-1.5">{r.unit}</td>
-                          <td className="py-1.5 text-right">{formatGBP(r.unitCost)}</td>
-                          <td className="py-1.5 text-right">{formatGBP(r.qty * r.unitCost)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <p className="mt-1 text-right text-sm font-medium text-slate-900 dark:text-slate-50">
-                    Supplier total: {formatGBP(vendorTotal)}
-                  </p>
+            <div className="mt-4 columns-1 gap-8 sm:columns-2 lg:columns-3">
+              {byVendor.map((v) => (
+                <div key={v.vendorName} className="mb-6 break-inside-avoid">
+                  <p className="font-bold text-slate-900 underline dark:text-slate-50">{v.vendorName}</p>
+                  {v.rows.map((r, i) => (
+                    <p key={i} className="text-sm text-slate-800 dark:text-slate-200">
+                      {r.qty} {r.unit} {r.name}
+                    </p>
+                  ))}
                 </div>
-              );
-            })}
-
-            <p className="mt-6 border-t border-slate-200 pt-2 text-right font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
-              Grand total: {formatGBP(grandTotal)}
-            </p>
+              ))}
+            </div>
           </div>
         </div>
       ) : null}
