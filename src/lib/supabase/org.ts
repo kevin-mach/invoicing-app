@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { TIERS, DEFAULT_TIER, type TierKey } from "@/lib/billing/plans";
 
@@ -29,8 +30,10 @@ export type CurrentOrg = {
   currentPeriodEnd: string | null;
 };
 
-/** Returns the signed-in user's first organization, or null if they have none yet. */
-export async function getCurrentOrg(): Promise<CurrentOrg | null> {
+/** Returns the signed-in user's first organization, or null if they have none yet.
+ * Wrapped in React's cache() so the layout and the page it wraps share one lookup per request
+ * instead of each doing its own auth check + DB round trip. */
+export const getCurrentOrg = cache(async (): Promise<CurrentOrg | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -86,4 +89,4 @@ export async function getCurrentOrg(): Promise<CurrentOrg | null> {
     cancelAtPeriodEnd: org.cancel_at_period_end,
     currentPeriodEnd: org.current_period_end,
   };
-}
+});
