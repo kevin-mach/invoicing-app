@@ -56,7 +56,7 @@ export function ChecklistEditor({
   const removeRow = (key: string) => setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.key !== key) : prev));
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
 
-  const itemsById = new Map(items.map((i) => [i.id, i]));
+  const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
   const duplicateGroups = useMemo(() => {
     const groups = new Map<string, Row[]>();
