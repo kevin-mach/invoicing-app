@@ -60,6 +60,7 @@ export default async function ChecklistPage({
             unit: i.unit,
           }))}
           initialPriceVisible={checklist.price_visible}
+          initialLabel={checklist.label ?? ""}
         />
       </div>
     </div>

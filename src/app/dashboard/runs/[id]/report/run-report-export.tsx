@@ -5,7 +5,7 @@ import { Printer, Sheet, Users, Truck } from "lucide-react";
 import { formatGBP } from "@/lib/format";
 import { PdfShareActions } from "@/components/pdf-share-actions";
 import { aggregateItemTotals } from "@/lib/reports/aggregate-items";
-import { StockSheetBuilder, type CustomerStopData } from "../stock-sheet/stock-sheet-builder";
+import type { CustomerStopData } from "../stock-sheet/stock-sheet-builder";
 import type { ItemOption } from "@/lib/supabase/items";
 
 export type RunReportLine = {
@@ -16,7 +16,12 @@ export type RunReportLine = {
   amount: number;
 };
 
-type Vendor = { id: string; name: string };
+export type VendorStopData = {
+  stopId: string;
+  vendorName: string;
+  label: string | null;
+  items: { item_id: string | null; description: string; qty: number; unit: string }[];
+};
 
 const typeLabel: Record<RunReportLine["type"], string> = {
   purchase: "Purchase (cost)",
@@ -28,7 +33,7 @@ export function RunReportExport({
   runDate,
   orgName,
   customerStops,
-  vendors,
+  vendorStops,
   items,
   lines,
   totalCost,
@@ -38,7 +43,7 @@ export function RunReportExport({
   runDate: string;
   orgName: string;
   customerStops: CustomerStopData[];
-  vendors: Vendor[];
+  vendorStops: VendorStopData[];
   items: ItemOption[];
   lines: RunReportLine[];
   totalCost: number;
@@ -50,41 +55,60 @@ export function RunReportExport({
   const [routeLabel, setRouteLabel] = useState("");
 
   const itemsById = useMemo(() => new Map(items.map((i) => [i.id, { name: i.name, unit: i.unit }])), [items]);
-  const itemTotals = useMemo(() => aggregateItemTotals(customerStops, itemsById), [customerStops, itemsById]);
+  const customerItemTotals = useMemo(() => aggregateItemTotals(customerStops, itemsById), [customerStops, itemsById]);
+  const vendorItemTotals = useMemo(() => aggregateItemTotals(vendorStops, itemsById), [vendorStops, itemsById]);
+
+  // Group vendor stops by supplier name; a supplier only gets a sub-heading per list when it
+  // has more than one checklist (or that checklist was explicitly named) — otherwise it just
+  // prints as a flat list, same as a supplier with a single order.
+  const vendorGroups = useMemo(() => {
+    const map = new Map<string, VendorStopData[]>();
+    for (const stop of vendorStops) {
+      const group = map.get(stop.vendorName);
+      if (group) group.push(stop);
+      else map.set(stop.vendorName, [stop]);
+    }
+    return Array.from(map.entries()).map(([vendorName, stops]) => ({ vendorName, stops }));
+  }, [vendorStops]);
+
+  const title = routeLabel.trim() ? `${runDate} ${routeLabel.trim()}` : runDate;
 
   const exportExcel = async () => {
     setExporting(true);
     try {
       const XLSX = await import("xlsx");
-      const rows = [
-        ["Condensed report", runDate, orgName],
-        [],
-        ["Item totals"],
-        ["Item", "Qty", "Unit"],
-        ...itemTotals.map((t) => [t.name, t.qty, t.unit]),
-        [],
-        ["Customer", "Item", "Qty", "Unit"],
-        ...customerStops.flatMap((s) => s.items.map((li) => [s.customerName, li.description, li.qty, li.unit])),
-        [],
-        ["Financial summary"],
-        ["Type", "Entity", "Description", "Qty", "Amount"],
-        ...lines.map((l) => [typeLabel[l.type], l.entity, l.description, l.qty, l.amount]),
-        [],
-        ["Total cost", "", "", "", totalCost],
-        ["Total revenue", "", "", "", totalRevenue],
-        ["Total cash items", "", "", "", totalCash],
-        ["Profit (revenue - cost)", "", "", "", totalRevenue - totalCost],
-      ];
+      const rows =
+        tab === "customers"
+          ? [
+              ["Condensed report — Customers", runDate, orgName],
+              [],
+              ["Item totals"],
+              ["Item", "Qty", "Unit"],
+              ...customerItemTotals.map((t) => [t.name, t.qty, t.unit]),
+              [],
+              ["Customer", "Item", "Qty", "Unit"],
+              ...customerStops.flatMap((s) => s.items.map((li) => [s.customerName, li.description, li.qty, li.unit])),
+            ]
+          : [
+              ["Condensed report — Suppliers", runDate, orgName],
+              [],
+              ["Item totals"],
+              ["Item", "Qty", "Unit"],
+              ...vendorItemTotals.map((t) => [t.name, t.qty, t.unit]),
+              [],
+              ["Supplier", "List", "Item", "Qty", "Unit"],
+              ...vendorStops.flatMap((s) =>
+                s.items.map((li) => [s.vendorName, s.label ?? "", li.description, li.qty, li.unit])
+              ),
+            ];
       const worksheet = XLSX.utils.aoa_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Condensed Report");
-      XLSX.writeFile(workbook, `condensed-report-${runDate}.xlsx`);
+      XLSX.utils.book_append_sheet(workbook, worksheet, tab === "customers" ? "Customers" : "Suppliers");
+      XLSX.writeFile(workbook, `condensed-report-${tab}-${runDate}.xlsx`);
     } finally {
       setExporting(false);
     }
   };
-
-  const title = routeLabel.trim() ? `${runDate} ${routeLabel.trim()}` : runDate;
 
   return (
     <div>
@@ -111,77 +135,117 @@ export function RunReportExport({
         </button>
       </div>
 
-      {tab === "customers" ? (
+      <div className="no-print mt-4 flex flex-wrap items-end gap-3">
         <div>
-          <div className="no-print mt-4 flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Route / area label (optional, shown on the sheet)
-              </label>
-              <input
-                value={routeLabel}
-                onChange={(e) => setRouteLabel(e.target.value)}
-                placeholder="e.g. OXFORD"
-                className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
-              />
-            </div>
-          </div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Route / area label (optional, shown on the sheet)
+          </label>
+          <input
+            value={routeLabel}
+            onChange={(e) => setRouteLabel(e.target.value)}
+            placeholder="e.g. OXFORD"
+            className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+        </div>
+      </div>
 
-          <div className="no-print mt-3 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <Printer size={16} /> Print
-            </button>
-            <PdfShareActions
-              targetId="run-report"
-              filename={`condensed-report-${runDate}${routeLabel.trim() ? `-${routeLabel.trim().replace(/\s+/g, "-").toLowerCase()}` : ""}.pdf`}
-              title={`Condensed report — ${title}`}
-            />
-            <button
-              onClick={exportExcel}
-              disabled={exporting}
-              className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <Sheet size={16} /> {exporting ? "Exporting..." : "Export Excel"}
-            </button>
-          </div>
+      <div className="no-print mt-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          <Printer size={16} /> Print
+        </button>
+        <PdfShareActions
+          targetId={tab === "customers" ? "run-report-customers" : "run-report-suppliers"}
+          filename={`condensed-report-${tab}-${runDate}${routeLabel.trim() ? `-${routeLabel.trim().replace(/\s+/g, "-").toLowerCase()}` : ""}.pdf`}
+          title={`Condensed report — ${tab === "customers" ? "Customers" : "Suppliers"} — ${title}`}
+        />
+        <button
+          onClick={exportExcel}
+          disabled={exporting}
+          className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          <Sheet size={16} /> {exporting ? "Exporting..." : "Export Excel"}
+        </button>
+      </div>
 
-          <div id="run-report" className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-sm text-slate-900 dark:text-slate-50">{title}</p>
+      {tab === "customers" ? (
+        <div id="run-report-customers" className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm text-slate-900 dark:text-slate-50">{title}</p>
 
-            {customerStops.length ? (
-              <>
-                <div className="mt-4 break-inside-avoid">
-                  <p className="font-bold text-slate-900 underline dark:text-slate-50">Item totals</p>
-                  {itemTotals.map((t) => (
-                    <p key={t.key} className="text-sm text-slate-800 dark:text-slate-200">
-                      {t.qty} {t.unit} {t.name}
-                    </p>
-                  ))}
-                </div>
+          {customerStops.length ? (
+            <>
+              <div className="mt-4 break-inside-avoid">
+                <p className="font-bold text-slate-900 underline dark:text-slate-50">Item totals</p>
+                {customerItemTotals.map((t) => (
+                  <p key={t.key} className="text-sm text-slate-800 dark:text-slate-200">
+                    {t.qty} {t.unit} {t.name}
+                  </p>
+                ))}
+              </div>
 
-                <div className="mt-6 columns-1 gap-8 sm:columns-2 lg:columns-3">
-                  {customerStops.map((stop) => (
-                    <div key={stop.stopId} className="mb-6 break-inside-avoid">
-                      <p className="font-bold text-slate-900 underline dark:text-slate-50">{stop.customerName}</p>
-                      {stop.items.map((li, i) => (
-                        <p key={i} className="text-sm text-slate-800 dark:text-slate-200">
-                          {li.qty} {li.unit} {li.description}
-                        </p>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="mt-4 text-sm text-slate-400">No customer orders recorded for this stock sheet yet.</p>
-            )}
-          </div>
+              <div className="mt-6 columns-1 gap-8 sm:columns-2 lg:columns-3">
+                {customerStops.map((stop) => (
+                  <div key={stop.stopId} className="mb-6 break-inside-avoid">
+                    <p className="font-bold text-slate-900 underline dark:text-slate-50">{stop.customerName}</p>
+                    {stop.items.map((li, i) => (
+                      <p key={i} className="text-sm text-slate-800 dark:text-slate-200">
+                        {li.qty} {li.unit} {li.description}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-slate-400">No customer orders recorded for this stock sheet yet.</p>
+          )}
         </div>
       ) : (
-        <StockSheetBuilder runDate={runDate} customerStops={customerStops} vendors={vendors} items={items} />
+        <div id="run-report-suppliers" className="mt-4 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm text-slate-900 dark:text-slate-50">{title}</p>
+
+          {vendorGroups.length ? (
+            <>
+              <div className="mt-4 break-inside-avoid">
+                <p className="font-bold text-slate-900 underline dark:text-slate-50">Item totals</p>
+                {vendorItemTotals.map((t) => (
+                  <p key={t.key} className="text-sm text-slate-800 dark:text-slate-200">
+                    {t.qty} {t.unit} {t.name}
+                  </p>
+                ))}
+              </div>
+
+              <div className="mt-6 columns-1 gap-8 sm:columns-2 lg:columns-3">
+                {vendorGroups.map((group) => {
+                  const multiList = group.stops.length > 1 || group.stops.some((s) => s.label);
+                  return (
+                    <div key={group.vendorName} className="mb-6 break-inside-avoid">
+                      <p className="font-bold text-slate-900 dark:text-slate-50">{group.vendorName}</p>
+                      {group.stops.map((stop, i) => (
+                        <div key={stop.stopId} className={multiList ? "mt-1" : ""}>
+                          {multiList ? (
+                            <p className="font-bold text-slate-900 underline dark:text-slate-50">
+                              {stop.label || `List ${i + 1}`}
+                            </p>
+                          ) : null}
+                          {stop.items.map((li, j) => (
+                            <p key={j} className="text-sm text-slate-800 dark:text-slate-200">
+                              {li.qty} {li.unit} {li.description}
+                            </p>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-slate-400">No supplier pickups recorded for this stock sheet yet.</p>
+          )}
+        </div>
       )}
 
       <div className="no-print mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">

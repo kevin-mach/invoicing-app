@@ -33,6 +33,7 @@ export function ChecklistEditor({
   items,
   initialItems,
   initialPriceVisible,
+  initialLabel,
 }: {
   checklistId: string;
   stopType: "vendor" | "customer";
@@ -40,6 +41,7 @@ export function ChecklistEditor({
   items: ItemOption[];
   initialItems: ChecklistItemInput[];
   initialPriceVisible: boolean;
+  initialLabel: string;
 }) {
   const [rows, setRows] = useState<Row[]>(
     initialItems.length ? initialItems.map((i) => ({ ...i, key: crypto.randomUUID() })) : [emptyRow()]
@@ -56,6 +58,42 @@ export function ChecklistEditor({
 
   const itemsById = new Map(items.map((i) => [i.id, i]));
 
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map<string, Row[]>();
+    for (const row of rows) {
+      if (!row.description.trim() && !row.item_id) continue;
+      const key = row.item_id ?? `desc:${row.description.trim().toLowerCase()}`;
+      const group = groups.get(key);
+      if (group) group.push(row);
+      else groups.set(key, [row]);
+    }
+    return Array.from(groups.values()).filter((group) => group.length > 1);
+  }, [rows]);
+
+  const mergeDuplicates = () => {
+    setRows((prev) => {
+      const seen = new Set<string>();
+      const merged: Row[] = [];
+      for (const row of prev) {
+        const key = row.item_id ?? `desc:${row.description.trim().toLowerCase()}`;
+        if (!row.description.trim() && !row.item_id) {
+          merged.push(row);
+          continue;
+        }
+        if (seen.has(key)) {
+          const target = merged.find(
+            (m) => (m.item_id ?? `desc:${m.description.trim().toLowerCase()}`) === key
+          );
+          if (target) target.qty += row.qty;
+          continue;
+        }
+        seen.add(key);
+        merged.push({ ...row });
+      }
+      return merged;
+    });
+  };
+
   const searchResults = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return [];
@@ -70,7 +108,7 @@ export function ChecklistEditor({
       {
         key: crypto.randomUUID(),
         item_id: item.id,
-        description: `${item.unit} of ${item.name}`,
+        description: item.name,
         qty: 1,
         category: "real",
         unit_price: stopType === "customer" ? item.sale_price : item.default_cost,
@@ -107,7 +145,7 @@ export function ChecklistEditor({
       {
         key: crypto.randomUUID(),
         item_id: s.item_id,
-        description: item ? `${item.unit} of ${item.name}` : s.description,
+        description: item ? item.name : s.description,
         qty: 1,
         category: "real",
         unit_price: s.unit_price,
@@ -204,8 +242,45 @@ export function ChecklistEditor({
         </div>
       ) : null}
 
+      {duplicateGroups.length ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          <p>
+            Duplicate item{duplicateGroups.length === 1 ? "" : "s"}:{" "}
+            {duplicateGroups
+              .map((group) => `${group[0].description || "Untitled item"} (×${group.length})`)
+              .join(", ")}
+            . If that&apos;s intentional, merge them into one line with the combined quantity.
+          </p>
+          <button
+            type="button"
+            onClick={mergeDuplicates}
+            className="mt-2 rounded-md border border-amber-400 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-300 dark:hover:bg-amber-900"
+          >
+            Merge duplicates
+          </button>
+        </div>
+      ) : null}
+
       <form action={saveWithId}>
         <input type="hidden" name="items" value={JSON.stringify(rows.map(({ key: _key, ...rest }) => rest))} />
+
+        {stopType === "vendor" ? (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              List name (optional)
+            </label>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              If this supplier needs more than one separate list (e.g. London vs outside London deliveries), add
+              another stop for the same supplier and give each checklist a different name here.
+            </p>
+            <input
+              name="label"
+              defaultValue={initialLabel}
+              placeholder="e.g. London"
+              className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+            />
+          </div>
+        ) : null}
 
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full min-w-[560px] text-left text-sm">
@@ -231,7 +306,7 @@ export function ChecklistEditor({
                         if (item) {
                           updateRow(row.key, {
                             item_id: item.id,
-                            description: `${item.unit} of ${item.name}`,
+                            description: item.name,
                             unit_price: stopType === "customer" ? item.sale_price : item.default_cost,
                             unit: item.unit,
                           });

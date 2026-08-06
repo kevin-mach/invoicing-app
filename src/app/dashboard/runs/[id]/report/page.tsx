@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { getItemsWithDefaultCost } from "@/lib/supabase/items";
-import { RunReportExport, type RunReportLine } from "./run-report-export";
+import { RunReportExport, type RunReportLine, type VendorStopData } from "./run-report-export";
 import type { CustomerStopData } from "../stock-sheet/stock-sheet-builder";
 
 export default async function RunReportPage({
@@ -21,7 +21,7 @@ export default async function RunReportPage({
     { data: invoices },
     { data: checklistItems },
     { data: customerStopRows },
-    { data: vendors },
+    { data: vendorStopRows },
     items,
   ] = await Promise.all([
     supabase.from("runs").select("*").eq("id", id).maybeSingle(),
@@ -42,7 +42,11 @@ export default async function RunReportPage({
       .select("id, customers(name), checklists(checklist_items(item_id, description, qty, unit))")
       .eq("run_id", id)
       .eq("stop_type", "customer"),
-    supabase.from("vendors").select("id, name").eq("org_id", org.orgId).order("name"),
+    supabase
+      .from("run_stops")
+      .select("id, vendors(name), checklists(label, checklist_items(item_id, description, qty, unit))")
+      .eq("run_id", id)
+      .eq("stop_type", "vendor"),
     getItemsWithDefaultCost(org.orgId),
   ]);
 
@@ -55,6 +59,17 @@ export default async function RunReportPage({
         checklist_items: { item_id: string | null; description: string; qty: number; unit: string }[];
       } | null;
       return { stopId: stop.id, customerName, items: checklist?.checklist_items ?? [] };
+    })
+    .filter((stop) => stop.items.length > 0);
+
+  const vendorStops: VendorStopData[] = (vendorStopRows ?? [])
+    .map((stop) => {
+      const vendorName = (stop.vendors as unknown as { name: string } | null)?.name ?? "—";
+      const checklist = stop.checklists as unknown as {
+        label: string | null;
+        checklist_items: { item_id: string | null; description: string; qty: number; unit: string }[];
+      } | null;
+      return { stopId: stop.id, vendorName, label: checklist?.label ?? null, items: checklist?.checklist_items ?? [] };
     })
     .filter((stop) => stop.items.length > 0);
 
@@ -111,7 +126,7 @@ export default async function RunReportPage({
         runDate={run.run_date}
         orgName={org.orgName}
         customerStops={customerStops}
-        vendors={vendors ?? []}
+        vendorStops={vendorStops}
         items={items}
         lines={[...lines, ...cashLines]}
         totalCost={totalCost}

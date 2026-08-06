@@ -69,18 +69,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          label: string | null
           price_visible: boolean
           run_stop_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          label?: string | null
           price_visible?: boolean
           run_stop_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          label?: string | null
           price_visible?: boolean
           run_stop_id?: string
         }

@@ -47,6 +47,10 @@ export async function saveChecklistItems(checklistId: string, formData: FormData
   const items = parseChecklistItems(String(formData.get("items") ?? "[]"));
   const supabase = await createClient();
   await persistChecklistItems(checklistId, items);
+  await supabase
+    .from("checklists")
+    .update({ label: String(formData.get("label") ?? "").trim() || null })
+    .eq("id", checklistId);
 
   const { data: checklist } = await supabase
     .from("checklists")
