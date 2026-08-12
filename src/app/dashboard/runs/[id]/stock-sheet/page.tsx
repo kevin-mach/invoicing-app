@@ -45,8 +45,8 @@ export default async function StockSheetPage({
         Stock sheet — {run.run_date}
       </h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Total quantity needed per item across today&apos;s customer orders, so you can allocate what to buy from each
-        supplier.
+        Pick today&apos;s suppliers, add items from your catalogue (or from what customers ordered today), and assign
+        each to a supplier to build a document ready to send.
       </p>
 
       <StockSheetBuilder
