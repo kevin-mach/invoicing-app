@@ -1,3 +1,5 @@
+import { roundQty } from "@/lib/format";
+
 export type ItemTotal = { key: string; name: string; unit: string; qty: number };
 
 type StopLike = { items: { item_id: string | null; description: string; qty: number; unit: string }[] };
@@ -15,7 +17,7 @@ export function aggregateItemTotals(
       const catalogItem = li.item_id ? itemsById.get(li.item_id) : undefined;
       const existing = map.get(key);
       if (existing) {
-        existing.qty += li.qty;
+        existing.qty = roundQty(existing.qty + li.qty);
       } else {
         map.set(key, {
           key,

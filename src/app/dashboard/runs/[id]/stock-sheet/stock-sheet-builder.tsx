@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Printer, Search, Sheet } from "lucide-react";
 import type { ItemOption } from "@/lib/supabase/items";
 import { PdfShareActions } from "@/components/pdf-share-actions";
+import { roundQty } from "@/lib/format";
 
 type Vendor = { id: string; name: string };
+
+type Suggestion = { item_id: string; description: string; unit_price: number; count: number };
 
 export type CustomerStopData = {
   stopId: string;
@@ -36,16 +39,18 @@ export function StockSheetBuilder({
   vendors: Vendor[];
   items: ItemOption[];
 }) {
-  // Who you're ordering from today — narrows the per-row supplier picker so you're not scrolling
-  // a long list of suppliers you're not using.
+  // Who you're ordering from today — narrows which suppliers get a "frequently ordered" quick-add
+  // panel. It never hides an already-assigned supplier from a row's dropdown.
   const [selectedVendorIds, setSelectedVendorIds] = useState<Set<string>>(() => new Set(vendors.map((v) => v.id)));
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [suggestionsByVendor, setSuggestionsByVendor] = useState<Record<string, Suggestion[]>>({});
 
   const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const vendorsById = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors]);
   const selectedVendors = vendors.filter((v) => selectedVendorIds.has(v.id));
+  const selectedVendorIdsKey = useMemo(() => Array.from(selectedVendorIds).sort().join(","), [selectedVendorIds]);
 
   // Reference only — total quantity customers actually ordered today, per item. Tap one to
   // quick-add it to the order list below.
@@ -57,7 +62,7 @@ export function StockSheetBuilder({
         const catalogItem = li.item_id ? itemsById.get(li.item_id) : undefined;
         const existing = map.get(key);
         if (existing) {
-          existing.qty += li.qty;
+          existing.qty = roundQty(existing.qty + li.qty);
         } else {
           map.set(key, {
             key,
@@ -72,6 +77,26 @@ export function StockSheetBuilder({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [customerStops, itemsById]);
 
+  // Frequently-ordered quick-add pills per selected supplier, reusing the same suggestion
+  // endpoint the run checklists use.
+  useEffect(() => {
+    let cancelled = false;
+    const ids = selectedVendorIdsKey ? selectedVendorIdsKey.split(",") : [];
+    Promise.all(
+      ids.map((id) =>
+        fetch(`/api/vendors/${id}/suggested-items`)
+          .then((r) => r.json())
+          .then((data) => [id, (data.suggestions ?? []) as Suggestion[]] as const)
+          .catch(() => [id, [] as Suggestion[]] as const)
+      )
+    ).then((results) => {
+      if (!cancelled) setSuggestionsByVendor(Object.fromEntries(results));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVendorIdsKey]);
+
   const toggleVendor = (vendorId: string) => {
     setSelectedVendorIds((prev) => {
       const next = new Set(prev);
@@ -81,7 +106,11 @@ export function StockSheetBuilder({
     });
   };
 
-  const addRow = (item: { id: string | null; name: string; unit: string }, qty = 1) => {
+  // Only auto-fill the supplier when there's exactly one candidate — with several selected,
+  // guessing which one would just create more corrections than it saves.
+  const defaultVendorId = selectedVendors.length === 1 ? selectedVendors[0].id : "";
+
+  const addRow = (item: { id: string | null; name: string; unit: string }, qty = 1, vendorId = defaultVendorId) => {
     setRows((prev) => [
       ...prev,
       {
@@ -89,8 +118,8 @@ export function StockSheetBuilder({
         itemId: item.id,
         description: item.name,
         unit: item.unit,
-        qty,
-        vendorId: selectedVendors[0]?.id ?? "",
+        qty: roundQty(qty),
+        vendorId,
         zone: "",
       },
     ]);
@@ -111,6 +140,11 @@ export function StockSheetBuilder({
   const handleSearchAdd = (item: ItemOption) => {
     addRow({ id: item.id, name: item.name, unit: item.unit });
     setSearch("");
+  };
+
+  const addSuggestion = (vendorId: string, s: Suggestion) => {
+    const item = itemsById.get(s.item_id);
+    addRow({ id: s.item_id, name: item?.name ?? s.description, unit: item?.unit ?? "unit" }, 1, vendorId);
   };
 
   // Group the order list by supplier, then by account/zone within a supplier, for the printable
@@ -138,7 +172,7 @@ export function StockSheetBuilder({
       if (!row.vendorId || row.qty <= 0 || !row.description.trim()) continue;
       const key = row.itemId ?? `desc:${row.description}`;
       const existing = map.get(key);
-      if (existing) existing.qty += row.qty;
+      if (existing) existing.qty = roundQty(existing.qty + row.qty);
       else map.set(key, { name: row.description, unit: row.unit, qty: row.qty });
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -198,6 +232,30 @@ export function StockSheetBuilder({
         )}
       </div>
 
+      {selectedVendors.map((v) => {
+        const sugg = suggestionsByVendor[v.id] ?? [];
+        if (!sugg.length) return null;
+        return (
+          <div key={v.id} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              Frequently picked up from {v.name} (tap to add)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {sugg.map((s) => (
+                <button
+                  key={s.item_id}
+                  type="button"
+                  onClick={() => addSuggestion(v.id, s)}
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  + {s.description}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
       {needed.length ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
           <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -254,7 +312,11 @@ export function StockSheetBuilder({
       </div>
 
       <div>
-        <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-50">Order list</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Order list</h2>
+        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+          To give one supplier more than one list (e.g. for separate invoices — &quot;London&quot; and &quot;Outside
+          London&quot;), add the same item twice with the same supplier but a different account/zone.
+        </p>
         {!rows.length ? (
           <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-400 dark:border-slate-700">
             Nothing added yet — search above or tap a suggestion to start building today&apos;s order.
@@ -282,7 +344,7 @@ export function StockSheetBuilder({
                         step="0.01"
                         min="0"
                         value={row.qty}
-                        onChange={(e) => updateRow(row.key, { qty: Number(e.target.value) || 0 })}
+                        onChange={(e) => updateRow(row.key, { qty: roundQty(Number(e.target.value) || 0) })}
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                       />
                     </td>
@@ -294,7 +356,7 @@ export function StockSheetBuilder({
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                       >
                         <option value="">Select a supplier...</option>
-                        {(selectedVendors.length ? selectedVendors : vendors).map((v) => (
+                        {vendors.map((v) => (
                           <option key={v.id} value={v.id}>
                             {v.name}
                           </option>

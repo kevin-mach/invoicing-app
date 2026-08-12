@@ -6,7 +6,7 @@ import type { PurchaseFormState, PurchaseLineItemInput } from "@/app/dashboard/p
 import type { ItemOption } from "@/lib/supabase/items";
 import { ReceiptScanner } from "@/components/receipt-scanner";
 import type { ParsedReceiptLine } from "@/lib/ocr/parse-lines";
-import { formatGBP } from "@/lib/format";
+import { formatGBP, roundQty } from "@/lib/format";
 
 type Vendor = { id: string; name: string };
 type Row = PurchaseLineItemInput & { key: string };
@@ -151,7 +151,7 @@ export function PurchaseForm({
                     step="0.01"
                     min="0"
                     value={row.qty}
-                    onChange={(e) => updateRow(row.key, { qty: Number(e.target.value) || 0 })}
+                    onChange={(e) => updateRow(row.key, { qty: roundQty(Number(e.target.value) || 0) })}
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>

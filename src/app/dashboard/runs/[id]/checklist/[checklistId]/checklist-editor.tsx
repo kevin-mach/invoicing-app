@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff, Plus, Search, ShoppingCart, FileText, Trash2 } from "lucide-react";
 import type { ItemOption } from "@/lib/supabase/items";
 import { UNIT_PRESETS } from "@/components/unit-field";
+import { roundQty } from "@/lib/format";
 import {
   saveChecklistItems,
   togglePriceVisible,
@@ -84,7 +85,7 @@ export function ChecklistEditor({
           const target = merged.find(
             (m) => (m.item_id ?? `desc:${m.description.trim().toLowerCase()}`) === key
           );
-          if (target) target.qty += row.qty;
+          if (target) target.qty = roundQty(target.qty + row.qty);
           continue;
         }
         seen.add(key);
@@ -337,7 +338,7 @@ export function ChecklistEditor({
                       step="0.01"
                       min="0"
                       value={row.qty}
-                      onChange={(e) => updateRow(row.key, { qty: Number(e.target.value) || 0 })}
+                      onChange={(e) => updateRow(row.key, { qty: roundQty(Number(e.target.value) || 0) })}
                       className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                     />
                   </td>

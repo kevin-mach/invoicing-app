@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { TemplateFormState, TemplateLineItemInput } from "@/app/dashboard/templates/actions";
 import type { ItemOption } from "@/lib/supabase/items";
 import { DateInput } from "@/components/date-input";
+import { roundQty } from "@/lib/format";
 
 type Customer = { id: string; name: string };
 type Row = TemplateLineItemInput & { key: string };
@@ -132,7 +133,7 @@ export function TemplateForm({
                     step="0.01"
                     min="0"
                     value={row.qty}
-                    onChange={(e) => updateRow(row.key, { qty: Number(e.target.value) || 0 })}
+                    onChange={(e) => updateRow(row.key, { qty: roundQty(Number(e.target.value) || 0) })}
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>

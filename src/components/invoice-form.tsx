@@ -4,7 +4,7 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { InvoiceFormState, LineItemInput } from "@/app/dashboard/invoices/actions";
 import type { ItemOption } from "@/lib/supabase/items";
-import { formatGBP } from "@/lib/format";
+import { formatGBP, roundQty } from "@/lib/format";
 import { DateInput } from "@/components/date-input";
 
 type Customer = { id: string; name: string };
@@ -229,7 +229,7 @@ export function InvoiceForm({
                     step="0.01"
                     min="0"
                     value={row.qty}
-                    onChange={(e) => updateRow(row.key, { qty: Number(e.target.value) || 0 })}
+                    onChange={(e) => updateRow(row.key, { qty: roundQty(Number(e.target.value) || 0) })}
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>
