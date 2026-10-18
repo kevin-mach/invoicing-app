@@ -46,13 +46,13 @@ export async function inviteTeamMember(
   }
 
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { invited_org_id: org.orgId, invited_role: requestedRole },
+    data: { invite_type: "org", invited_org_id: org.orgId, invited_role: requestedRole },
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/invite/accept`,
   });
 
   if (error) {
     if (error.message.toLowerCase().includes("already been registered")) {
-      return { error: "That email already has an account. Multi-organization membership isn't supported yet." };
+      return { error: "This email already has an account. One login can only belong to one workspace right now." };
     }
     return { error: error.message };
   }

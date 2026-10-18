@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Printer, Search, Sheet } from "lucide-react";
+import { Plus, Trash2, Printer, Search, Sheet, X } from "lucide-react";
 import type { ItemOption } from "@/lib/supabase/items";
 import { PdfShareActions } from "@/components/pdf-share-actions";
 import { roundQty } from "@/lib/format";
+import { ScanButton } from "@/components/bookkeeping/scan-button";
+import type { ScanExtraction } from "@/lib/scan/extract";
+import { matchCatalogItem } from "@/lib/scan/match-items";
+import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeeping/use-new-entries";
 
 type Vendor = { id: string; name: string };
 
@@ -32,13 +36,17 @@ export function StockSheetBuilder({
   runDate,
   customerStops,
   vendors,
-  items,
+  items: baseItems,
 }: {
   runDate: string;
   customerStops: CustomerStopData[];
   vendors: Vendor[];
   items: ItemOption[];
 }) {
+  const [extraItems, setExtraItems] = useState<ItemOption[]>([]);
+  const items = useMemo(() => [...baseItems, ...extraItems.filter((e) => !baseItems.some((i) => i.id === e.id))], [baseItems, extraItems]);
+  const { ask, prompt } = useNewEntriesPrompt();
+  const [scanNote, setScanNote] = useState<string | null>(null);
   // Who you're ordering from today — narrows which suppliers get a "frequently ordered" quick-add
   // panel. It never hides an already-assigned supplier from a row's dropdown.
   const [selectedVendorIds, setSelectedVendorIds] = useState<Set<string>>(() => new Set(vendors.map((v) => v.id)));
@@ -46,6 +54,8 @@ export function StockSheetBuilder({
   const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
   const [suggestionsByVendor, setSuggestionsByVendor] = useState<Record<string, Suggestion[]>>({});
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const [newAccount, setNewAccount] = useState("");
 
   const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const vendorsById = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors]);
@@ -106,6 +116,13 @@ export function StockSheetBuilder({
     });
   };
 
+  const addAccount = () => {
+    const trimmed = newAccount.trim();
+    if (trimmed && !accounts.includes(trimmed)) setAccounts((prev) => [...prev, trimmed]);
+    setNewAccount("");
+  };
+  const removeAccount = (name: string) => setAccounts((prev) => prev.filter((a) => a !== name));
+
   // Only auto-fill the supplier when there's exactly one candidate — with several selected,
   // guessing which one would just create more corrections than it saves.
   const defaultVendorId = selectedVendors.length === 1 ? selectedVendors[0].id : "";
@@ -123,6 +140,53 @@ export function StockSheetBuilder({
         zone: "",
       },
     ]);
+  };
+
+  // A photo of what needs ordering (a handwritten list, the empty shelves). The sheet has no save
+  // step — it builds as you go — so the lines go straight into the order list.
+  const handleScanned = async (data: ScanExtraction) => {
+    if (data.kind !== "list") return;
+    let catalogList: ItemOption[] = items;
+
+    const proposed = new Map<string, ProposedEntry>();
+    for (const line of data.items) {
+      if (matchCatalogItem(line.description, catalogList) || proposed.has(`i:${line.description}`)) continue;
+      proposed.set(`i:${line.description}`, {
+        key: `i:${line.description}`,
+        kind: "Item",
+        label: line.description,
+        detail: `${line.qty}${line.unit ? ` ${line.unit}` : ""}`,
+        item: { name: line.description, unit: line.unit ?? "unit" },
+      });
+    }
+    if (proposed.size) {
+      const created = await ask([...proposed.values()]);
+      if (created) {
+        catalogList = [...catalogList, ...created.items];
+        setExtraItems((p) => [...p, ...created.items]);
+      }
+    }
+
+    let oneOff = 0;
+    const added: OrderRow[] = data.items.map((line) => {
+      const item = matchCatalogItem(line.description, catalogList);
+      if (!item) oneOff++;
+      return {
+        key: crypto.randomUUID(),
+        itemId: item?.id ?? null,
+        description: item ? item.name : line.description,
+        unit: item?.unit ?? line.unit ?? "unit",
+        qty: roundQty(line.qty),
+        vendorId: defaultVendorId,
+        zone: "",
+      };
+    });
+    setRows((prev) => [...prev, ...added]);
+    setScanNote(
+      `Added ${added.length} line${added.length === 1 ? "" : "s"} to the order list${oneOff ? ` (${oneOff} one-off, not in your catalogue)` : ""}.${
+        defaultVendorId ? "" : " Pick a supplier on each row — lines without one stay off the printed sheet."
+      }`
+    );
   };
 
   const updateRow = (key: string, patch: Partial<OrderRow>) =>
@@ -232,6 +296,51 @@ export function StockSheetBuilder({
         )}
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <p className="mb-1 text-sm font-medium text-slate-700 dark:text-slate-300">Accounts / zones (optional)</p>
+        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+          Add account names once here (e.g. &quot;LEE FOOD SUPPLIES&quot;, &quot;LEE FOOD 2&quot;), then pick one per
+          row below — give a supplier rows in two different accounts to split it into two lists.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {accounts.map((a) => (
+            <span
+              key={a}
+              className="flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+            >
+              {a}
+              <button
+                type="button"
+                onClick={() => removeAccount(a)}
+                aria-label={`Remove ${a}`}
+                className="text-slate-400 hover:text-red-600"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+          <input
+            value={newAccount}
+            onChange={(e) => setNewAccount(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addAccount();
+              }
+            }}
+            placeholder="e.g. LEE FOOD SUPPLIES"
+            className="w-48 rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+          <button
+            type="button"
+            onClick={addAccount}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
       {selectedVendors.map((v) => {
         const sugg = suggestionsByVendor[v.id] ?? [];
         if (!sugg.length) return null;
@@ -312,10 +421,17 @@ export function StockSheetBuilder({
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Order list</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Order list</h2>
+          <ScanButton kind="list" label="Scan a photo of what's needed" onExtracted={handleScanned} />
+        </div>
+        <div className="mt-2 space-y-2">
+          {prompt}
+          {scanNote ? <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-400">{scanNote}</p> : null}
+        </div>
         <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-          To give one supplier more than one list (e.g. for separate invoices — &quot;London&quot; and &quot;Outside
-          London&quot;), add the same item twice with the same supplier but a different account/zone.
+          To give one supplier more than one list (e.g. for separate invoices), add accounts above and pick a
+          different account per row for that supplier.
         </p>
         {!rows.length ? (
           <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-400 dark:border-slate-700">
@@ -364,12 +480,18 @@ export function StockSheetBuilder({
                       </select>
                     </td>
                     <td className="px-3 py-2">
-                      <input
+                      <select
                         value={row.zone}
                         onChange={(e) => updateRow(row.key, { zone: e.target.value })}
-                        placeholder="e.g. London"
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
-                      />
+                      >
+                        <option value="">No account</option>
+                        {accounts.map((a) => (
+                          <option key={a} value={a}>
+                            {a}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-2 text-right">
                       <button type="button" onClick={() => removeRow(row.key)} className="text-slate-400 hover:text-red-600">

@@ -50,6 +50,16 @@ export default function LoginPage() {
             />
           </div>
 
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              name="keepSignedIn"
+              defaultChecked
+              className="h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+            />
+            Keep me signed in for 30 days
+          </label>
+
           {state.error ? (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
               {state.error}

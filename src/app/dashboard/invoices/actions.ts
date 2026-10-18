@@ -47,6 +47,7 @@ export async function createInvoice(
       due_date: String(formData.get("due_date") ?? "") || null,
       notes: String(formData.get("notes") ?? "") || null,
       tax: Number(formData.get("tax") ?? 0) || 0,
+      vat_on_top: formData.get("vat_on_top") === "on",
     })
     .select("id")
     .single();
@@ -92,6 +93,7 @@ export async function updateInvoiceLineItems(
       due_date: String(formData.get("due_date") ?? "") || null,
       notes: String(formData.get("notes") ?? "") || null,
       tax: Number(formData.get("tax") ?? 0) || 0,
+      vat_on_top: formData.get("vat_on_top") === "on",
     })
     .eq("id", invoiceId);
 

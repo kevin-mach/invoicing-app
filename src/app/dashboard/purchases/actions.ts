@@ -12,6 +12,8 @@ export type PurchaseLineItemInput = {
   description: string;
   qty: number;
   unit_cost: number;
+  /** VAT % on this line; defaults to 0 (most food is zero-rated). */
+  vat_rate?: number;
 };
 
 function parseLineItems(raw: string): PurchaseLineItemInput[] {
@@ -36,6 +38,9 @@ export async function createPurchase(
   const lineItems = parseLineItems(String(formData.get("line_items") ?? "[]"));
   if (!lineItems.length) return { error: "Add at least one line item." };
 
+  const supplierRef = String(formData.get("supplier_ref") ?? "").trim();
+  const dueDate = String(formData.get("due_date") ?? "");
+
   const supabase = await createClient();
   const { data: purchase, error } = await supabase
     .from("purchases")
@@ -43,10 +48,15 @@ export async function createPurchase(
       org_id: org.orgId,
       vendor_id: vendorId,
       notes: String(formData.get("notes") ?? "") || null,
+      supplier_ref: supplierRef || null,
+      due_date: /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : null,
     })
     .select("id")
     .single();
 
+  if (error?.code === "23505") {
+    return { error: "That supplier invoice number is already recorded for this supplier — possible duplicate." };
+  }
   if (error || !purchase) return { error: error?.message ?? "Could not create purchase." };
 
   const { error: liError } = await supabase.from("purchase_line_items").insert(
@@ -56,6 +66,7 @@ export async function createPurchase(
       description: li.description,
       qty: li.qty,
       unit_cost: li.unit_cost,
+      vat_rate: Math.min(100, Math.max(0, Number(li.vat_rate) || 0)),
     }))
   );
 

@@ -17,7 +17,14 @@ export default async function NewInvoicePage() {
   return (
     <div>
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">New invoice</h1>
-      <InvoiceForm action={createInvoice} customers={customers ?? []} items={items} submitLabel="Create invoice" />
+      <InvoiceForm
+        action={createInvoice}
+        customers={customers ?? []}
+        items={items}
+        initialVatOnTop={org.addVatToTotal}
+        submitLabel="Create invoice"
+        autoSaveScans={org.autoSaveScans}
+      />
     </div>
   );
 }

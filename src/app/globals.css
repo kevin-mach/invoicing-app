@@ -34,3 +34,47 @@ body {
     color: black;
   }
 }
+
+/* Line-item tables: on a phone, each row becomes a card (label above value) instead of a wide
+   table that needs sideways scrolling. Cells opt in with data-label; data-wide spans the full row. */
+@media (max-width: 639px) {
+  table.lines {
+    min-width: 0 !important;
+  }
+  table.lines thead {
+    display: none;
+  }
+  table.lines tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 0.75rem;
+    padding: 0.875rem 0.75rem;
+    position: relative;
+  }
+  table.lines tbody td {
+    display: block;
+    padding: 0 !important;
+    min-width: 0;
+    text-align: left !important;
+  }
+  table.lines tbody td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.125rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    opacity: 0.6;
+  }
+  table.lines tbody td[data-wide] {
+    grid-column: 1 / -1;
+  }
+  table.lines tbody td[data-remove] {
+    grid-column: 1 / -1;
+    text-align: right !important;
+  }
+  table.lines tbody td input,
+  table.lines tbody td select {
+    min-height: 2.5rem;
+    text-align: left;
+  }
+}

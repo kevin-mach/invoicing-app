@@ -14,6 +14,9 @@ import {
   Route,
   Repeat,
   BarChart3,
+  Calculator,
+  Banknote,
+  Boxes,
   UserPlus,
   CreditCard,
   Menu,
@@ -32,15 +35,22 @@ const links = [
   { href: "/dashboard/purchases", label: "Purchases", icon: ShoppingCart },
   { href: "/dashboard/runs", label: "Stock Sheet", icon: Route },
   { href: "/dashboard/templates", label: "Recurring", icon: Repeat },
+  { href: "/dashboard/cash-up", label: "Cash-up", icon: Banknote },
+  { href: "/dashboard/stock", label: "Stock", icon: Boxes },
   { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
+  { href: "/dashboard/bookkeeping", label: "Bookkeeping", icon: Calculator },
   { href: "/dashboard/team", label: "Team", icon: UserPlus },
   { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
 ];
 
+const FINANCE_ONLY = ["/dashboard/reports", "/dashboard/bookkeeping"];
+
+const OPS = ["/dashboard/cash-up", "/dashboard/stock"];
+
 function visibleLinks(role: string) {
-  if (role === "bookkeeper") return links.filter((l) => l.href === "/dashboard/reports");
+  if (role === "bookkeeper") return links.filter((l) => FINANCE_ONLY.includes(l.href) || OPS.includes(l.href));
   if (role === "owner") return links;
-  return links.filter((l) => l.href !== "/dashboard/reports" && l.href !== "/dashboard/payments");
+  return links.filter((l) => !FINANCE_ONLY.includes(l.href) && l.href !== "/dashboard/payments");
 }
 
 function NavLinks({

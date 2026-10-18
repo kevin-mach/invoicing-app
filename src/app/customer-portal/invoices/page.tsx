@@ -1,0 +1,65 @@
+import Link from "next/link";
+import { getCurrentCustomerMember } from "@/lib/supabase/identity";
+import { getCustomerInvoices } from "@/lib/supabase/portal-queries";
+import { formatGBP } from "@/lib/format";
+
+const statusStyles: Record<string, string> = {
+  draft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  sent: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  paid: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
+  overdue: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+};
+
+export default async function CustomerPortalInvoicesPage() {
+  const member = await getCurrentCustomerMember();
+  if (!member) return null;
+
+  const invoices = await getCustomerInvoices(member.customerId);
+
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Invoices</h1>
+
+      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-3 font-medium">Number</th>
+              <th className="hidden px-4 py-3 font-medium sm:table-cell">Date</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 text-right font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoices.map((inv) => (
+              <tr key={inv.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/customer-portal/invoices/${inv.id}`}
+                    className="font-medium text-slate-900 hover:underline dark:text-slate-50"
+                  >
+                    {inv.number ?? inv.id.slice(0, 8)}
+                  </Link>
+                </td>
+                <td className="hidden px-4 py-3 text-slate-600 sm:table-cell dark:text-slate-400">{inv.issue_date}</td>
+                <td className="px-4 py-3">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[inv.status]}`}>
+                    {inv.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(inv.total)}</td>
+              </tr>
+            ))}
+            {!invoices.length ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                  No invoices yet.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

@@ -76,6 +76,7 @@ export default async function InvoiceDetailPage({
           initialDueDate={invoice.due_date ?? ""}
           initialNotes={invoice.notes ?? ""}
           initialTax={invoice.tax}
+          initialVatOnTop={invoice.vat_on_top}
           initialLineItems={(lineItems ?? []).map((li) => ({
             item_id: li.item_id,
             description: li.description,

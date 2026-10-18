@@ -6,12 +6,18 @@ import type { PurchaseFormState, PurchaseLineItemInput } from "@/app/dashboard/p
 import type { ItemOption } from "@/lib/supabase/items";
 import { ReceiptScanner } from "@/components/receipt-scanner";
 import type { ParsedReceiptLine } from "@/lib/ocr/parse-lines";
-import { formatGBP, roundQty } from "@/lib/format";
+import { ScanButton } from "@/components/bookkeeping/scan-button";
+import type { ScanExtraction } from "@/lib/scan/extract";
+import { matchCatalogItem, matchVendor } from "@/lib/scan/match-items";
+import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeeping/use-new-entries";
+import { formatGBP, roundMoney, roundQty } from "@/lib/format";
+import { DateInput } from "@/components/date-input";
+import { VAT_RATES } from "@/lib/bookkeeping/categories";
 
 type Vendor = { id: string; name: string };
 type Row = PurchaseLineItemInput & { key: string };
 
-const emptyRow = (): Row => ({ key: crypto.randomUUID(), item_id: null, description: "", qty: 1, unit_cost: 0 });
+const emptyRow = (): Row => ({ key: crypto.randomUUID(), item_id: null, description: "", qty: 1, unit_cost: 0, vat_rate: 0 });
 
 export function PurchaseForm({
   action,
@@ -22,6 +28,7 @@ export function PurchaseForm({
   initialNotes,
   initialLineItems,
   submitLabel = "Save purchase",
+  autoSaveScans = false,
 }: {
   action: (state: PurchaseFormState, formData: FormData) => Promise<PurchaseFormState>;
   orgId: string;
@@ -31,15 +38,25 @@ export function PurchaseForm({
   initialNotes?: string;
   initialLineItems?: PurchaseLineItemInput[];
   submitLabel?: string;
+  autoSaveScans?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null } as PurchaseFormState);
   const [vendorId, setVendorId] = useState(initialVendorId ?? "");
+  const [supplierRef, setSupplierRef] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>(
     initialLineItems?.length ? initialLineItems.map((li) => ({ ...li, key: crypto.randomUUID() })) : [emptyRow()]
   );
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [extraVendors, setExtraVendors] = useState<Vendor[]>([]);
+  const [extraItems, setExtraItems] = useState<ItemOption[]>([]);
+  const { ask, prompt } = useNewEntriesPrompt();
 
-  const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const allVendors = useMemo(() => [...vendors, ...extraVendors.filter((e) => !vendors.some((v) => v.id === e.id))], [vendors, extraVendors]);
+  const catalog = useMemo(() => [...items, ...extraItems.filter((e) => !items.some((i) => i.id === e.id))], [items, extraItems]);
+  const itemsById = useMemo(() => new Map(catalog.map((i) => [i.id, i])), [catalog]);
 
   const updateRow = (key: string, patch: Partial<Row>) => {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -58,19 +75,103 @@ export function PurchaseForm({
         description: p.description,
         qty: p.qty,
         unit_cost: p.unit_cost,
+        vat_rate: 0,
       }));
       return blank.length ? [...blank, ...scanned] : scanned;
     });
   };
 
-  const total = rows.reduce((sum, r) => sum + r.qty * r.unit_cost, 0);
+  const handleAiScanned = async (data: ScanExtraction) => {
+    if (data.kind !== "bill") return;
+    setAutoSaveError(null);
+
+    let vendorList = allVendors;
+    let catalogList = catalog;
+    let vendorMatch = data.vendorName ? matchVendor(data.vendorName, vendorList) : null;
+
+    // Anything the photo mentions that isn't in the database yet is only added if the person says so.
+    const proposed = new Map<string, ProposedEntry>();
+    if (data.vendorName && !vendorMatch) {
+      proposed.set(`s:${data.vendorName}`, { key: `s:${data.vendorName}`, kind: "Supplier", label: data.vendorName, supplier: data.vendorName });
+    }
+    for (const l of data.lines) {
+      if (matchCatalogItem(l.description, catalogList) || proposed.has(`i:${l.description}`)) continue;
+      proposed.set(`i:${l.description}`, {
+        key: `i:${l.description}`,
+        kind: "Item",
+        label: l.description,
+        detail: `${l.qty} × ${formatGBP(l.unitCost)}`,
+        item: { name: l.description, unit: "unit", vatRate: l.vatRate },
+      });
+    }
+
+    let resolved = true;
+    if (proposed.size) {
+      const created = await ask([...proposed.values()]);
+      if (!created) {
+        resolved = false;
+      } else {
+        vendorList = [...vendorList, ...created.suppliers];
+        catalogList = [...catalogList, ...created.items];
+        setExtraVendors((p) => [...p, ...created.suppliers]);
+        setExtraItems((p) => [...p, ...created.items]);
+        vendorMatch = data.vendorName ? matchVendor(data.vendorName, vendorList) : null;
+        resolved = (!data.vendorName || !!vendorMatch) && data.lines.every((l) => !!matchCatalogItem(l.description, catalogList));
+      }
+    }
+
+    if (vendorMatch) setVendorId(vendorMatch.id);
+    if (data.billNumber) setSupplierRef(data.billNumber);
+    if (data.dueDate) setDueDate(data.dueDate);
+
+    const nextRows: Row[] = data.lines.length
+      ? data.lines.map((l) => {
+          const item = matchCatalogItem(l.description, catalogList);
+          return {
+            key: crypto.randomUUID(),
+            item_id: item?.id ?? null,
+            description: item ? item.name : l.description,
+            qty: l.qty,
+            unit_cost: l.unitCost,
+            vat_rate: l.vatRate,
+          };
+        })
+      : rows;
+    if (data.lines.length) setRows(nextRows);
+
+    // Auto-save needs an exact supplier, every line settled (matched or just added with the
+    // person's say-so), and at least one real line item.
+    const validLines = nextRows.filter((r) => r.description.trim() && r.qty > 0);
+    const ready = autoSaveScans && resolved && vendorMatch && data.lines.length && validLines.length === nextRows.length;
+    if (!ready || !vendorMatch) return;
+
+    setAutoSaving(true);
+    const formData = new FormData();
+    formData.set("vendor_id", vendorMatch.id);
+    formData.set("supplier_ref", data.billNumber ?? "");
+    formData.set("due_date", data.dueDate ?? "");
+    formData.set("notes", "");
+    formData.set("image_url", "");
+    formData.set("line_items", JSON.stringify(validLines.map(({ key: _key, ...rest }) => rest)));
+    const result = await action({ error: null }, formData);
+    setAutoSaving(false);
+    // On success `action` (createPurchase) redirects to the new purchase, which unmounts this
+    // form — so only the failure path is ever seen here.
+    if (result.error) setAutoSaveError(`Couldn't auto-save — ${result.error} Check the details below and save manually.`);
+  };
+
+  const net = roundMoney(rows.reduce((sum, r) => sum + r.qty * r.unit_cost, 0));
+  const vatTotal = roundMoney(rows.reduce((sum, r) => sum + (r.qty * r.unit_cost * (Number(r.vat_rate) || 0)) / 100, 0));
+  const total = roundMoney(net + vatTotal);
 
   return (
     <form action={formAction} className="mt-6 space-y-6">
       <input type="hidden" name="line_items" value={JSON.stringify(rows.map(({ key: _key, ...rest }) => rest))} />
       <input type="hidden" name="image_url" value={imageUrl ?? ""} />
 
-      <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-2 dark:border-slate-800 dark:bg-slate-900">
+      {prompt}
+
+      <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 sm:grid-cols-2 dark:border-slate-800 dark:bg-slate-900">
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Supplier</label>
           <select
@@ -81,15 +182,35 @@ export function PurchaseForm({
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
           >
             <option value="">Select a supplier...</option>
-            {vendors.map((v) => (
+            {allVendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
               </option>
             ))}
           </select>
         </div>
-        <div className="flex items-end">
+        <div className="flex flex-wrap items-end gap-2">
           <ReceiptScanner orgId={orgId} onScanned={handleScanned} />
+          <ScanButton kind="bill" label="Scan with AI" onExtracted={handleAiScanned} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Supplier invoice no. (optional)</label>
+          <input
+            name="supplier_ref"
+            value={supplierRef}
+            onChange={(e) => setSupplierRef(e.target.value)}
+            placeholder="Their invoice number"
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Payment due (optional)</label>
+          <DateInput
+            name="due_date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Notes</label>
@@ -103,13 +224,14 @@ export function PurchaseForm({
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <table className="w-full min-w-[560px] text-left text-sm">
+        <table className="lines w-full min-w-[560px] text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-3 py-2 font-medium">Item</th>
               <th className="px-3 py-2 font-medium">Description</th>
               <th className="w-20 px-3 py-2 text-right font-medium">Qty</th>
               <th className="w-24 px-3 py-2 text-right font-medium">Cost</th>
+              <th className="w-20 px-3 py-2 text-right font-medium">VAT %</th>
               <th className="w-24 px-3 py-2 text-right font-medium">Line total</th>
               <th className="w-10 px-3 py-2" />
             </tr>
@@ -117,7 +239,7 @@ export function PurchaseForm({
           <tbody>
             {rows.map((row) => (
               <tr key={row.key} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                <td className="px-3 py-2">
+                <td className="px-3 py-2" data-label="Item" data-wide>
                   <select
                     value={row.item_id ?? ""}
                     onChange={(e) => {
@@ -131,21 +253,21 @@ export function PurchaseForm({
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   >
                     <option value="">Custom</option>
-                    {items.map((i) => (
+                    {catalog.map((i) => (
                       <option key={i.id} value={i.id}>
                         {i.item_code} - {i.name}
                       </option>
                     ))}
                   </select>
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2" data-label="Description" data-wide>
                   <input
                     value={row.description}
                     onChange={(e) => updateRow(row.key, { description: e.target.value })}
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2" data-label="Qty">
                   <input
                     type="number"
                     step="0.01"
@@ -155,7 +277,7 @@ export function PurchaseForm({
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2" data-label="Cost">
                   <input
                     type="number"
                     step="0.01"
@@ -165,10 +287,23 @@ export function PurchaseForm({
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>
-                <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-50">
+                <td className="px-3 py-2" data-label="VAT %">
+                  <select
+                    value={row.vat_rate ?? 0}
+                    onChange={(e) => updateRow(row.key, { vat_rate: Number(e.target.value) })}
+                    className="w-full rounded-md border border-slate-300 px-1 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+                  >
+                    {VAT_RATES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}%
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-50" data-label="Line total">
                   {formatGBP(row.qty * row.unit_cost)}
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-3 py-2 text-right" data-remove>
                   <button type="button" onClick={() => removeRow(row.key)} className="text-slate-400 hover:text-red-600">
                     <Trash2 size={16} />
                   </button>
@@ -187,8 +322,16 @@ export function PurchaseForm({
       </div>
 
       <div className="flex justify-end">
-        <div className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex justify-between font-semibold text-slate-900 dark:text-slate-50">
+        <div className="w-full max-w-xs space-y-1 rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>Net</span>
+            <span>{formatGBP(net)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>VAT</span>
+            <span>{formatGBP(vatTotal)}</span>
+          </div>
+          <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
             <span>Total cost</span>
             <span>{formatGBP(total)}</span>
           </div>
@@ -196,10 +339,12 @@ export function PurchaseForm({
       </div>
 
       {state.error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{state.error}</p> : null}
+      {autoSaveError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{autoSaveError}</p> : null}
+      {autoSaving ? <p className="text-sm text-slate-500 dark:text-slate-400">Saving automatically from the photo...</p> : null}
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || autoSaving}
         className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-50 dark:text-slate-900"
       >
         {pending ? "Saving..." : submitLabel}

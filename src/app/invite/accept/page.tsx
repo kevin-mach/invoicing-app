@@ -54,7 +54,15 @@ export default function AcceptInvitePage() {
       return;
     }
 
-    router.push("/dashboard");
+    const { data: refreshed } = await supabase.auth.getUser();
+    const inviteType = refreshed.user?.user_metadata?.invite_type;
+    const destination =
+      inviteType === "customer_portal"
+        ? "/customer-portal"
+        : inviteType === "vendor_portal"
+          ? "/supplier-portal"
+          : "/dashboard";
+    router.push(destination);
     router.refresh();
   };
 

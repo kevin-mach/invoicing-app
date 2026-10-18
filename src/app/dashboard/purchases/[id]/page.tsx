@@ -20,14 +20,21 @@ export default async function PurchaseDetailPage({
   if (!purchase) notFound();
 
   const vendor = purchase.vendors as unknown as { name: string; address: string | null } | null;
-  const total = (lineItems ?? []).reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
+  const net = (lineItems ?? []).reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
+  const vatTotal = (lineItems ?? []).reduce((sum, li) => sum + (li.vat_amount ?? 0), 0);
+  const total = net + vatTotal;
 
   return (
     <div className="max-w-2xl">
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">
         Purchase from {vendor?.name ?? "—"}
       </h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400">{purchase.purchase_date}</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        {purchase.purchase_date}
+        {purchase.supplier_ref ? ` · Supplier invoice ${purchase.supplier_ref}` : ""}
+        {purchase.due_date ? ` · Due ${purchase.due_date}` : ""}
+        {purchase.paid_on ? ` · Paid ${purchase.paid_on}` : ""}
+      </p>
 
       <div className="mt-4">
         <PurchaseActions purchaseId={purchase.id} status={purchase.status} />
@@ -40,6 +47,7 @@ export default async function PurchaseDetailPage({
               <th className="px-4 py-2 font-medium">Description</th>
               <th className="px-4 py-2 text-right font-medium">Qty</th>
               <th className="px-4 py-2 text-right font-medium">Cost</th>
+              <th className="px-4 py-2 text-right font-medium">VAT %</th>
               <th className="px-4 py-2 text-right font-medium">Total</th>
             </tr>
           </thead>
@@ -49,13 +57,14 @@ export default async function PurchaseDetailPage({
                 <td className="px-4 py-2">{li.description}</td>
                 <td className="px-4 py-2 text-right">{li.qty}</td>
                 <td className="px-4 py-2 text-right">{formatGBP(li.unit_cost)}</td>
+                <td className="px-4 py-2 text-right">{li.vat_rate}%</td>
                 <td className="px-4 py-2 text-right">{formatGBP(li.line_total ?? li.qty * li.unit_cost)}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <div className="flex justify-end border-t border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
-          Total: {formatGBP(total)}
+          {vatTotal > 0 ? `Net ${formatGBP(net)} + VAT ${formatGBP(vatTotal)} = ` : ""}Total: {formatGBP(total)}
         </div>
       </div>
 

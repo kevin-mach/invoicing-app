@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, Plus, Search, ShoppingCart, FileText, Trash2 } from "lucide-react";
 import type { ItemOption } from "@/lib/supabase/items";
 import { UNIT_PRESETS } from "@/components/unit-field";
 import { roundQty } from "@/lib/format";
+import { ScanButton } from "@/components/bookkeeping/scan-button";
+import type { ScanExtraction } from "@/lib/scan/extract";
+import { matchCatalogItem } from "@/lib/scan/match-items";
+import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeeping/use-new-entries";
 import {
   saveChecklistItems,
   togglePriceVisible,
@@ -31,10 +35,11 @@ export function ChecklistEditor({
   checklistId,
   stopType,
   stopEntityId,
-  items,
+  items: baseItems,
   initialItems,
   initialPriceVisible,
   initialLabel,
+  autoSaveScans = false,
 }: {
   checklistId: string;
   stopType: "vendor" | "customer";
@@ -43,13 +48,23 @@ export function ChecklistEditor({
   initialItems: ChecklistItemInput[];
   initialPriceVisible: boolean;
   initialLabel: string;
+  autoSaveScans?: boolean;
 }) {
+  const [extraItems, setExtraItems] = useState<ItemOption[]>([]);
+  const items = useMemo(() => [...baseItems, ...extraItems.filter((e) => !baseItems.some((i) => i.id === e.id))], [baseItems, extraItems]);
+  const { ask, prompt } = useNewEntriesPrompt();
+  const [label, setLabel] = useState(initialLabel);
   const [rows, setRows] = useState<Row[]>(
     initialItems.length ? initialItems.map((i) => ({ ...i, key: crypto.randomUUID() })) : [emptyRow()]
   );
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
   const [priceVisible, setPriceVisible] = useState(initialPriceVisible);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [search, setSearch] = useState("");
+  const [scanNote, setScanNote] = useState<string | null>(null);
   const saveWithId = saveChecklistItems.bind(null, checklistId);
 
   const updateRow = (key: string, patch: Partial<Row>) =>
@@ -155,9 +170,72 @@ export function ChecklistEditor({
     ]);
   };
 
+  // A photo of a delivery note, order sheet, or the goods themselves — matched against the item
+  // catalogue so a whole stop's worth of items lands in the list at once instead of one by one.
+  const handleScanned = async (data: ScanExtraction) => {
+    if (data.kind !== "list") return;
+    let catalogList: ItemOption[] = items;
+
+    // Items on the photo that aren't in the catalogue are only added if the person says so.
+    const proposed = new Map<string, ProposedEntry>();
+    for (const line of data.items) {
+      if (matchCatalogItem(line.description, catalogList) || proposed.has(`i:${line.description}`)) continue;
+      proposed.set(`i:${line.description}`, {
+        key: `i:${line.description}`,
+        kind: "Item",
+        label: line.description,
+        detail: `${line.qty}${line.unit ? ` ${line.unit}` : ""}`,
+        item: { name: line.description, unit: line.unit ?? "unit" },
+      });
+    }
+    let createdNew = false;
+    if (proposed.size) {
+      const created = await ask([...proposed.values()]);
+      if (created) {
+        catalogList = [...catalogList, ...created.items];
+        setExtraItems((p) => [...p, ...created.items]);
+        createdNew = created.items.length > 0;
+      }
+    }
+
+    let matched = 0;
+    const added: Row[] = data.items.map((line) => {
+      const item = matchCatalogItem(line.description, catalogList);
+      if (item) matched++;
+      return {
+        key: crypto.randomUUID(),
+        item_id: item?.id ?? null,
+        description: item ? item.name : line.description,
+        qty: line.qty,
+        category: "real",
+        unit_price: item ? (stopType === "customer" ? item.sale_price : item.default_cost) : 0,
+        unit: item?.unit ?? line.unit ?? "unit",
+      };
+    });
+    const nextRows = [...rowsRef.current.filter((r) => r.description.trim() || r.item_id), ...added];
+    setRows(nextRows);
+    const unmatched = data.items.length - matched;
+
+    // Saving the checklist is what puts it into the run's report, so with auto-save on it happens
+    // as soon as every item on the photo is settled. Creating the invoice/purchase stays a deliberate click.
+    if (autoSaveScans && unmatched === 0 && added.length > 0) {
+      const formData = new FormData();
+      formData.set("items", JSON.stringify(nextRows.map(({ key: _key, ...rest }) => rest)));
+      formData.set("label", label);
+      await saveWithId(formData);
+      setScanNote(
+        `Added ${data.items.length} item${data.items.length === 1 ? "" : "s"} from the photo and saved the checklist — it's now in this run's report.${createdNew ? " New items start at £0, so check their prices." : ""}`
+      );
+      return;
+    }
+    setScanNote(
+      `Added ${data.items.length} item${data.items.length === 1 ? "" : "s"} from the photo (${matched} matched your catalogue${unmatched ? `, ${unmatched} added as custom — check the price` : ""}). Press Save checklist when you're happy.`
+    );
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => {
@@ -170,7 +248,7 @@ export function ChecklistEditor({
           {priceVisible ? "Prices shown" : "Prices hidden"}
         </button>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => convertChecklistToPurchase(checklistId, rows.map(({ key: _key, ...rest }) => rest))}
@@ -189,6 +267,16 @@ export function ChecklistEditor({
           </button>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Search below, tap a suggestion, or scan a photo of the delivery note or the goods themselves to add a whole
+          stop&apos;s items at once.
+        </p>
+        <ScanButton kind="list" label="Scan a photo" onExtracted={handleScanned} />
+      </div>
+      {prompt}
+      {scanNote ? <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-400">{scanNote}</p> : null}
 
       <div className="relative">
         <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -276,7 +364,8 @@ export function ChecklistEditor({
             </p>
             <input
               name="label"
-              defaultValue={initialLabel}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. London"
               className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
             />
@@ -284,7 +373,7 @@ export function ChecklistEditor({
         ) : null}
 
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <table className="w-full min-w-[560px] text-left text-sm">
+          <table className="lines w-full min-w-[560px] text-left text-sm">
             <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-2 font-medium">Item</th>
@@ -299,7 +388,7 @@ export function ChecklistEditor({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.key} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2" data-label="Item" data-wide>
                     <select
                       value={row.item_id ?? ""}
                       onChange={(e) => {
@@ -325,14 +414,14 @@ export function ChecklistEditor({
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2" data-label="Description" data-wide>
                     <input
                       value={row.description}
                       onChange={(e) => updateRow(row.key, { description: e.target.value })}
                       className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2" data-label="Qty">
                     <input
                       type="number"
                       step="0.01"
@@ -342,7 +431,7 @@ export function ChecklistEditor({
                       className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2" data-label="Unit">
                     <select
                       value={row.unit}
                       onChange={(e) => updateRow(row.key, { unit: e.target.value })}
@@ -355,7 +444,7 @@ export function ChecklistEditor({
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2" data-label="Category" data-wide>
                     <div className="flex gap-1">
                       {(["real", "cash"] as const).map((c) => (
                         <button
@@ -374,7 +463,7 @@ export function ChecklistEditor({
                     </div>
                   </td>
                   {priceVisible ? (
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" data-label="Price">
                       <input
                         type="number"
                         step="0.01"
@@ -385,7 +474,7 @@ export function ChecklistEditor({
                       />
                     </td>
                   ) : null}
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right" data-remove>
                     <button type="button" onClick={() => removeRow(row.key)} className="text-slate-400 hover:text-red-600">
                       <Trash2 size={16} />
                     </button>

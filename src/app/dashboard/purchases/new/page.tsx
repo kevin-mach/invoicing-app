@@ -26,6 +26,7 @@ export default async function NewPurchasePage() {
         vendors={vendors ?? []}
         items={items}
         submitLabel="Save purchase"
+        autoSaveScans={org.autoSaveScans}
       />
     </div>
   );

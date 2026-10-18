@@ -148,6 +148,7 @@ export async function convertChecklistToInvoice(checklistId: string, currentItem
       org_id: org.orgId,
       customer_id: runStop.customer_id,
       run_id: runStop.run_id,
+      vat_on_top: org.addVatToTotal,
       ...(runStop.runs?.run_date ? { issue_date: runStop.runs.run_date } : {}),
     })
     .select("id")

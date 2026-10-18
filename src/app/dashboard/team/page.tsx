@@ -19,7 +19,8 @@ export default async function TeamPage() {
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         {memberCount} of {org.maxUsers} seats used on the {`${TIERS[org.subscriptionTier].label} plan`}. Every
         team member can see all of this organization&apos;s invoices, stock sheets, suppliers, customers, and items — except
-        bookkeepers, who only see the Reports page, and everyone but the owner is kept out of Reports.
+        bookkeepers, who only see Reports and Bookkeeping, and everyone but the owner and bookkeeper is kept out of
+        both.
       </p>
 
       {canManage ? (

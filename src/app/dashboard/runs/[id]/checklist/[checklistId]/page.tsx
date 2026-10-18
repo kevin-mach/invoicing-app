@@ -51,6 +51,7 @@ export default async function ChecklistPage({
           stopType={runStop.stop_type}
           stopEntityId={stopEntityId}
           items={items}
+          autoSaveScans={org.autoSaveScans}
           initialItems={(checklistItems ?? []).map((i) => ({
             item_id: i.item_id,
             description: i.description,

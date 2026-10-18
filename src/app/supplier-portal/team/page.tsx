@@ -1,0 +1,59 @@
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentVendorMember } from "@/lib/supabase/identity";
+import { InviteForm } from "./invite-form";
+import { RemoveMemberButton, RoleSelect } from "./member-actions";
+
+export default async function SupplierPortalTeamPage() {
+  const member = await getCurrentVendorMember();
+  if (!member) return null;
+
+  const supabase = await createClient();
+  const { data: members } = await supabase.rpc("get_vendor_members", { p_vendor_id: member.vendorId });
+  const canManage = member.role === "owner";
+
+  return (
+    <div className="max-w-2xl">
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Team</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Invite your bookkeeper or other staff to view purchase orders for {member.vendorName}.
+      </p>
+
+      {canManage ? (
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+          <InviteForm />
+        </div>
+      ) : null}
+
+      <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-3 font-medium">Email</th>
+              <th className="px-4 py-3 font-medium">Role</th>
+              {canManage ? <th className="px-4 py-3" /> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {members?.map((m) => (
+              <tr key={m.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                <td className="px-4 py-3 text-slate-900 dark:text-slate-50">{m.email}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                  {canManage && m.role !== "owner" ? (
+                    <RoleSelect memberId={m.id} role={m.role} />
+                  ) : (
+                    <span className="capitalize">{m.role}</span>
+                  )}
+                </td>
+                {canManage ? (
+                  <td className="px-4 py-3 text-right">
+                    {m.user_id !== member.userId ? <RemoveMemberButton memberId={m.id} name={m.email} /> : null}
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

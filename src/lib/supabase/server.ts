@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/supabase/types";
+import { capSessionCookies } from "@/lib/supabase/session-policy";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -15,7 +16,9 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            for (const { name, value, options } of cookiesToSet) {
+            // Caps the auth cookie to the 30-day "keep me signed in" window instead of whatever
+            // lifetime Supabase's own client would otherwise give it — see session-policy.ts.
+            for (const { name, value, options } of capSessionCookies(cookiesToSet, cookieStore)) {
               cookieStore.set(name, value, options);
             }
           } catch {

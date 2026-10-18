@@ -15,7 +15,7 @@ export default async function NewQuotePage() {
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Build a priced item list to send to a prospective customer — doesn&apos;t require an existing customer record.
       </p>
-      <QuoteForm action={createQuote} items={items} submitLabel="Create quote" />
+      <QuoteForm action={createQuote} items={items} submitLabel="Create quote" autoSaveScans={org.autoSaveScans} />
     </div>
   );
 }

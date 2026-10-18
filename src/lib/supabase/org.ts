@@ -28,6 +28,12 @@ export type CurrentOrg = {
   stripeSubscriptionId: string | null;
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
+  /** Default for new invoices: add VAT on top of the total (opt-in, off by default). */
+  addVatToTotal: boolean;
+  vatNumber: string | null;
+  /** When on, an AI photo scan saves itself once the photo gives everything a save needs —
+   * otherwise every scan just fills in the form and waits for a person. Off by default. */
+  autoSaveScans: boolean;
 };
 
 /** Returns the signed-in user's first organization, or null if they have none yet.
@@ -44,7 +50,7 @@ export const getCurrentOrg = cache(async (): Promise<CurrentOrg | null> => {
   const { data: membership } = await supabase
     .from("org_members")
     .select(
-      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_tier, subscription_exempt, stripe_customer_id, stripe_subscription_id, cancel_at_period_end, current_period_end)"
+      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_tier, subscription_exempt, stripe_customer_id, stripe_subscription_id, cancel_at_period_end, current_period_end, add_vat_to_total, vat_number, auto_save_scans)"
     )
     .eq("user_id", user.id)
     .limit(1)
@@ -63,6 +69,9 @@ export const getCurrentOrg = cache(async (): Promise<CurrentOrg | null> => {
     stripe_subscription_id: string | null;
     cancel_at_period_end: boolean;
     current_period_end: string | null;
+    add_vat_to_total: boolean;
+    vat_number: string | null;
+    auto_save_scans: boolean;
   } | null;
 
   if (!org) return null;
@@ -88,5 +97,8 @@ export const getCurrentOrg = cache(async (): Promise<CurrentOrg | null> => {
     stripeSubscriptionId: org.stripe_subscription_id,
     cancelAtPeriodEnd: org.cancel_at_period_end,
     currentPeriodEnd: org.current_period_end,
+    addVatToTotal: org.add_vat_to_total,
+    vatNumber: org.vat_number,
+    autoSaveScans: org.auto_save_scans,
   };
 });
