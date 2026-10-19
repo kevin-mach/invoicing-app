@@ -40,8 +40,14 @@ export type ListExtraction = { kind: "list"; items: ListLine[] };
 
 export type ScanExtraction = ReceiptExtraction | BillExtraction | TillExtraction | ListExtraction;
 
+/** The key as saved in the host's settings, tolerating the stray spaces, line breaks or quote
+ * marks that often come along when it's pasted in. */
+function anthropicKey(): string {
+  return (process.env.ANTHROPIC_API_KEY ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
+}
+
 export function scanConfigured(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return !!anthropicKey();
 }
 
 const VAT_RATE_ENUM = [0, 5, 20];
@@ -150,7 +156,7 @@ function systemPromptFor(kind: ScanKind): string {
 }
 
 export async function extractFromImage(kind: ScanKind, base64: string, mediaType: string): Promise<ScanExtraction> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = anthropicKey();
   if (!apiKey) throw new Error("AI scanning isn't set up on this server yet.");
   const model = process.env.ANTHROPIC_SCAN_MODEL || "claude-sonnet-5";
   const tool = TOOLS[kind];
@@ -181,7 +187,7 @@ export async function extractFromImage(kind: ScanKind, base64: string, mediaType
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    if (res.status === 401) throw new Error("AI scanning isn't set up correctly on this server (invalid key).");
+    if (res.status === 401) throw new Error("AI scanning isn't set up correctly on this server (the Anthropic key was rejected — check ANTHROPIC_API_KEY, then redeploy).");
     if (res.status === 400) throw new Error("Couldn't read that file — try a clearer photo, or a different PDF.");
     throw new Error(`Scan failed (${res.status}). ${detail.slice(0, 200)}`);
   }
