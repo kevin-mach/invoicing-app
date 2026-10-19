@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { DateInput } from "@/components/date-input";
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, VAT_RATES } from "@/lib/bookkeeping/categories";
 import { formatGBP, roundMoney } from "@/lib/format";
 import { btnPrimary, btnSecondary, inputClass, labelClass } from "@/components/bookkeeping/ui";
-import { ScanButton } from "@/components/bookkeeping/scan-button";
+import { prepareFile, ScanButton } from "@/components/bookkeeping/scan-button";
 import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeeping/use-new-entries";
 import type { ScanExtraction } from "@/lib/scan/extract";
 import { matchCatalogItemStrict, matchVendor } from "@/lib/scan/match-items";
@@ -52,6 +52,10 @@ export function ExpenseForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // Set while an old lump-sum expense is being rebuilt from its saved photo: the old entry is removed once the new one is saved.
+  const [replacing, setReplacing] = useState<{ expenseId: string; receiptPath: string; label: string } | null>(null);
+  const [rescanning, setRescanning] = useState(false);
+  const scanHandler = useRef<((data: ScanExtraction, f: File, opts?: { noAutoSave?: boolean }) => Promise<void>) | null>(null);
 
   const grossNum = Number(gross);
   const net = Number.isFinite(grossNum) ? roundMoney(grossNum / (1 + vatRate / 100)) : 0;
@@ -151,20 +155,28 @@ export function ExpenseForm({
       return;
     }
 
-    const up = await uploadReceipt(f);
+    // A rebuilt old entry already has its photo in storage — reuse it instead of uploading a second copy.
+    const up = replacing ? { path: replacing.receiptPath, error: null } : await uploadReceipt(f);
     if (up.error) {
       setDraftSaving(false);
       setDraftError(up.error);
       return;
     }
     const result = await saveReceipt({ merchant: d.merchant, date: d.date, paymentMethod: d.method, supplierId: supplier?.id ?? null, receiptPath: up.path, lines });
-    setDraftSaving(false);
     if (result.error) {
+      setDraftSaving(false);
       setDraftError(result.error);
       return;
     }
+    if (replacing) {
+      const removed = await deleteExpense(replacing.expenseId);
+      if (removed.error) setNote(`The new itemised receipt is saved, but the old entry couldn't be removed (${removed.error}) — delete it yourself so it isn't counted twice.`);
+      setReplacing(null);
+    }
+    setDraftSaving(false);
     const stockCount = lines.filter((l) => l.isStock).length;
-    setNote(
+    setNote((prev) =>
+      prev ??
       `Saved ${d.merchant}: ${stockCount ? `${stockCount} stock item${stockCount === 1 ? "" : "s"} added under ${supplier?.name ?? "the supplier"}` : ""}${
         stockCount && result.expenseCount ? " and " : ""
       }${result.expenseCount ? `${result.expenseCount} expense entr${result.expenseCount === 1 ? "y" : "ies"}` : ""}.`
@@ -173,7 +185,7 @@ export function ExpenseForm({
     setDraftFile(null);
   };
 
-  const handleScanned = async (data: ScanExtraction, scannedFile: File) => {
+  const handleScanned = async (data: ScanExtraction, scannedFile: File, opts?: { noAutoSave?: boolean }) => {
     if (data.kind !== "receipt") return;
     setError(null);
     setNote(null);
@@ -209,7 +221,7 @@ export function ExpenseForm({
       setDraft(next);
       setDraftFile(scannedFile);
       setDraftError(null);
-      if (autoSaveScans && warnings.length === 0 && next.merchant.trim()) await saveDraft(next, scannedFile);
+      if (autoSaveScans && !opts?.noAutoSave && warnings.length === 0 && next.merchant.trim()) await saveDraft(next, scannedFile);
       return;
     }
 
@@ -256,6 +268,41 @@ export function ExpenseForm({
     setFile(null);
   };
 
+  useEffect(() => {
+    scanHandler.current = handleScanned;
+  });
+
+  // "Read the items from the receipt photo" on an old lump-sum expense lands here.
+  useEffect(() => {
+    const onRescan = async (ev: Event) => {
+      const { file: photo, expenseId, receiptPath, label } = (ev as CustomEvent<{ file: File; expenseId: string; receiptPath: string; label: string }>).detail;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setError(null);
+      setNote(null);
+      setRescanning(true);
+      try {
+        const prepared = await prepareFile(photo);
+        const form = new FormData();
+        form.set("kind", "receipt");
+        form.set("image", prepared);
+        const res = await fetch("/api/scan", { method: "POST", body: form });
+        const result = (await res.json().catch(() => null)) as { error: string | null; data?: ScanExtraction } | null;
+        if (!res.ok || !result || result.error || !result.data) {
+          setError(result?.error ?? "Couldn't read that receipt photo.");
+          return;
+        }
+        setReplacing({ expenseId, receiptPath, label });
+        await scanHandler.current?.(result.data, prepared, { noAutoSave: true });
+      } catch {
+        setError("Couldn't reach the scanner. Check your connection and try again.");
+      } finally {
+        setRescanning(false);
+      }
+    };
+    window.addEventListener("receipt-rescan", onRescan);
+    return () => window.removeEventListener("receipt-rescan", onRescan);
+  }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -285,6 +332,11 @@ export function ExpenseForm({
     return (
       <div className="space-y-4">
         {prompt}
+        {replacing ? (
+          <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+            You&apos;re rebuilding the earlier {replacing.label} entry from its photo. When you save, this itemised version replaces it, so nothing is counted twice.
+          </p>
+        ) : null}
         <ReceiptReview
           draft={draft}
           onChange={setDraft}
@@ -293,6 +345,7 @@ export function ExpenseForm({
             setDraft(null);
             setDraftFile(null);
             setDraftError(null);
+            setReplacing(null);
           }}
           saving={draftSaving}
           error={draftError}
@@ -400,6 +453,7 @@ export function ExpenseForm({
       {note ? (
         <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">{note}</p>
       ) : null}
+      {rescanning ? <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-400">Reading the receipt photo again...</p> : null}
     </form>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { DateInput } from "@/components/date-input";
+import type { Group } from "@/lib/period";
 
 const field = "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50";
 
@@ -11,17 +12,19 @@ export function ListSearch({
   q,
   from,
   to,
+  group,
   placeholder,
 }: {
   basePath: string;
   q: string;
   from: string;
   to: string;
+  group: Group;
   placeholder: string;
 }) {
-  const filtering = !!(q || from || to);
+  const filtering = !!(q || from || to || group !== "none");
   return (
-    <form method="get" action={basePath} className="no-print mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end dark:border-slate-800 dark:bg-slate-900">
+    <form method="get" action={basePath} className="no-print mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end dark:border-slate-800 dark:bg-slate-900">
       <div className="min-w-0">
         <label htmlFor="list-search-q" className="block text-xs font-medium text-slate-500 dark:text-slate-400">
           Search
@@ -46,6 +49,17 @@ export function ListSearch({
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">To</label>
         <DateInput name="to" defaultValue={to} className={field} />
+      </div>
+      <div>
+        <label htmlFor="list-search-group" className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+          Group by
+        </label>
+        <select id="list-search-group" name="group" defaultValue={group} className={field}>
+          <option value="none">Not grouped</option>
+          <option value="day">Day</option>
+          <option value="month">Month</option>
+          <option value="year">Year</option>
+        </select>
       </div>
       <div className="flex gap-2">
         <button

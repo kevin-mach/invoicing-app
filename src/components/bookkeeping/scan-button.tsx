@@ -13,7 +13,7 @@ const MAX_EDGE = 2000; // plenty to read receipt print; keeps uploads small and 
 /** Phone photos are often 5–12MB. Shrinks images to a readable size and re-encodes as JPEG
  * (which also converts HEIC where the browser can decode it). PDFs and anything the browser
  * can't decode are sent as-is. */
-async function prepareFile(file: File): Promise<File> {
+export async function prepareFile(file: File): Promise<File> {
   if (file.type === "application/pdf") return file;
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });

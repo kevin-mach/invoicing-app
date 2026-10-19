@@ -318,6 +318,8 @@ export type ExpenseRow = {
   payment_method: string;
   receipt_url: string | null;
   bank_transaction_id: string | null;
+  /** The scanned receipt this came from, if any — its items are kept there. */
+  receipt_id: string | null;
 };
 
 export async function getExpenses(orgId: string, from: string, to: string): Promise<ExpenseRow[]> {
@@ -326,7 +328,7 @@ export async function getExpenses(orgId: string, from: string, to: string): Prom
     supabase
       .from("expenses")
       .select(
-        "id, expense_date, payee, category, description, net_amount, vat_amount, total_amount, payment_method, receipt_url, bank_transaction_id"
+        "id, expense_date, payee, category, description, net_amount, vat_amount, total_amount, payment_method, receipt_url, bank_transaction_id, receipt_id"
       )
       .eq("org_id", orgId)
       .gte("expense_date", from)

@@ -3,10 +3,13 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { formatGBP } from "@/lib/format";
+import { Fragment } from "react";
 import { cleanDate, matchesSearch } from "@/lib/search";
+import { cleanGroup, groupRows, periodReportHref } from "@/lib/period";
 import { ListSearch } from "@/components/list-search";
+import { GroupHeaderRow } from "@/components/group-header-row";
 
-export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string }> }) {
+export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string; group?: string }> }) {
   const org = await getCurrentOrg();
   if (!org) return null;
 
@@ -14,6 +17,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   const q = (params.q ?? "").trim().slice(0, 100);
   const from = cleanDate(params.from);
   const to = cleanDate(params.to);
+  const group = cleanGroup(params.group);
 
   const supabase = await createClient();
   let query = supabase
@@ -25,11 +29,11 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   if (from) query = query.gte("issue_date", from);
   if (to) query = query.lte("issue_date", to);
   const { data: allQuotes } = await query;
-  const quotes = (allQuotes ?? []).filter((qt) => {
-    const lines = (qt.quote_line_items ?? []) as { qty: number; unit_price: number }[];
-    const total = lines.reduce((sum, li) => sum + li.qty * li.unit_price, 0);
-    return matchesSearch(q, { text: [qt.recipient_name, qt.recipient_contact], date: qt.issue_date, amounts: [total] });
-  });
+  const totalOf = (qt: { quote_line_items: unknown }) =>
+    ((qt.quote_line_items ?? []) as { qty: number; unit_price: number }[]).reduce((sum, li) => sum + li.qty * li.unit_price, 0);
+  const quotes = (allQuotes ?? []).filter((qt) =>
+    matchesSearch(q, { text: [qt.recipient_name, qt.recipient_contact], date: qt.issue_date, amounts: [totalOf(qt)] })
+  );
   const filtering = !!(q || from || to);
 
   return (
@@ -44,7 +48,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         </Link>
       </div>
 
-      <ListSearch basePath="/dashboard/quotes" q={q} from={from} to={to} placeholder="Name, contact, date or amount…" />
+      <ListSearch basePath="/dashboard/quotes" q={q} from={from} to={to} group={group} placeholder="Name, contact, date or amount…" />
       {filtering ? (
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Showing {quotes.length} of {allQuotes?.length ?? 0} quote{(allQuotes?.length ?? 0) === 1 ? "" : "s"}.
@@ -61,9 +65,20 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
             </tr>
           </thead>
           <tbody>
-            {quotes.map((qt) => {
-              const lines = (qt.quote_line_items ?? []) as { qty: number; unit_price: number }[];
-              const total = lines.reduce((sum, li) => sum + li.qty * li.unit_price, 0);
+            {(group === "none" ? [{ key: "", title: "", rows: quotes }] : groupRows(quotes, (qt) => qt.issue_date, group)).map((g) => (
+              <Fragment key={g.key || "all"}>
+                {group !== "none" ? (
+                  <GroupHeaderRow
+                    title={g.title}
+                    count={g.rows.length}
+                    noun="quote"
+                    total={g.rows.reduce((s, qt) => s + totalOf(qt), 0)}
+                    colSpan={3}
+                    reportHref={periodReportHref(g.key)}
+                  />
+                ) : null}
+                {g.rows.map((qt) => {
+              const total = totalOf(qt);
               return (
                 <tr key={qt.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                   <td className="px-4 py-3">
@@ -76,6 +91,8 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
                 </tr>
               );
             })}
+              </Fragment>
+            ))}
             {!quotes.length ? (
               <tr>
                 <td colSpan={3} className="px-4 py-8 text-center text-slate-400">

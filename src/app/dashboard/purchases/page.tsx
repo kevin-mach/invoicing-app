@@ -3,10 +3,13 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { formatGBP } from "@/lib/format";
+import { Fragment } from "react";
 import { cleanDate, matchesSearch } from "@/lib/search";
+import { cleanGroup, groupRows, periodReportHref } from "@/lib/period";
 import { ListSearch } from "@/components/list-search";
+import { GroupHeaderRow } from "@/components/group-header-row";
 
-export default async function PurchasesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string }> }) {
+export default async function PurchasesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string; group?: string }> }) {
   const org = await getCurrentOrg();
   if (!org) return null;
 
@@ -14,6 +17,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
   const q = (params.q ?? "").trim().slice(0, 100);
   const from = cleanDate(params.from);
   const to = cleanDate(params.to);
+  const group = cleanGroup(params.group);
 
   const supabase = await createClient();
   let query = supabase
@@ -25,13 +29,14 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
   if (from) query = query.gte("purchase_date", from);
   if (to) query = query.lte("purchase_date", to);
   const { data: allPurchases } = await query;
+  const totalOf = (p: { purchase_line_items: unknown }) =>
+    ((p.purchase_line_items ?? []) as { qty: number; unit_cost: number }[]).reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
   const purchases = (allPurchases ?? []).filter((p) => {
-    const lines = (p.purchase_line_items ?? []) as { description: string; qty: number; unit_cost: number }[];
-    const total = lines.reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
+    const lines = (p.purchase_line_items ?? []) as { description: string }[];
     return matchesSearch(q, {
       text: [(p.vendors as unknown as { name: string } | null)?.name, p.supplier_ref, p.status, p.notes, ...lines.map((l) => l.description)],
       date: p.purchase_date,
-      amounts: [total],
+      amounts: [totalOf(p)],
     });
   });
   const filtering = !!(q || from || to);
@@ -48,7 +53,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
         </Link>
       </div>
 
-      <ListSearch basePath="/dashboard/purchases" q={q} from={from} to={to} placeholder="Supplier, bill number, item, date or amount…" />
+      <ListSearch basePath="/dashboard/purchases" q={q} from={from} to={to} group={group} placeholder="Supplier, bill number, item, date or amount…" />
       {filtering ? (
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Showing {purchases.length} of {allPurchases?.length ?? 0} purchase{(allPurchases?.length ?? 0) === 1 ? "" : "s"}.
@@ -66,9 +71,20 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
             </tr>
           </thead>
           <tbody>
-            {purchases.map((p) => {
-              const lines = (p.purchase_line_items ?? []) as { qty: number; unit_cost: number }[];
-              const total = lines.reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
+            {(group === "none" ? [{ key: "", title: "", rows: purchases }] : groupRows(purchases, (p) => p.purchase_date, group)).map((g) => (
+              <Fragment key={g.key || "all"}>
+                {group !== "none" ? (
+                  <GroupHeaderRow
+                    title={g.title}
+                    count={g.rows.length}
+                    noun="purchase"
+                    total={g.rows.reduce((s, p) => s + totalOf(p), 0)}
+                    colSpan={4}
+                    reportHref={periodReportHref(g.key)}
+                  />
+                ) : null}
+                {g.rows.map((p) => {
+              const total = totalOf(p);
               return (
                 <tr key={p.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                   <td className="px-4 py-3">
@@ -86,6 +102,8 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
                 </tr>
               );
             })}
+              </Fragment>
+            ))}
             {!purchases.length ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-slate-400">

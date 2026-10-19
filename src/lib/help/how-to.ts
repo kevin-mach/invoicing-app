@@ -109,7 +109,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Invoices",
     what: "An invoice is a bill you send to a customer for what you sold them. This page lists them all and shows which ones are paid.",
     when: ["When you want to see who still owes you money.", "When you want to open, print or send an invoice."],
-    steps: ["Looking for one? Type in the Search box: a customer's name, an invoice number, a date (like 19/10/2026 or October) or an amount. Use From and To to pick a range of dates, then tap Search.", "Look at the list. The status shows if it is draft, sent or paid.", "Tap one to open it.", "Tap \"New\" to make an invoice, or \"Daily report\" to see everything for one day."],
+    steps: ["Looking for one? Type in the Search box: a customer's name, an invoice number, a date (like 19/10/2026 or October) or an amount. Use From and To to pick a range of dates, then tap Search.", "Want them in piles? Choose \"Group by\" Day, Month or Year. Each pile shows how many and the total, with a link to its full report.", "Look at the list. The status shows if it is draft, sent or paid.", "Tap one to open it.", "Tap \"New\" to make an invoice, or \"Daily report\" to see everything for one day."],
   },
   "/dashboard/invoices/new": {
     title: "New invoice",
@@ -137,7 +137,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Quotes",
     what: "A quote is a price offer you give someone before they buy. It says \"this is what it would cost\".",
     when: ["When someone asks \"how much would it be?\"."],
-    steps: ["Looking for one? Type a name, a date (like 19/10/2026 or October) or an amount in the Search box. Use From and To to pick a range of dates, then tap Search.", "Look at your list of quotes.", "Tap one to open or print it.", "Tap \"New\" to make a quote."],
+    steps: ["Looking for one? Type a name, a date (like 19/10/2026 or October) or an amount in the Search box. Use From and To to pick a range of dates, then tap Search.", "Want them in piles? Choose \"Group by\" Day, Month or Year. Each pile shows how many and the total.", "Look at your list of quotes.", "Tap one to open or print it.", "Tap \"New\" to make a quote."],
   },
   "/dashboard/quotes/new": {
     title: "New quote",
@@ -158,7 +158,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Purchases",
     what: "A purchase is something you bought from a supplier. This page lists everything you bought. Buying stock here also adds it to your stock list.",
     when: ["When you want to see what you bought and from whom.", "When a supplier sends you a bill."],
-    steps: ["Looking for one? Type a supplier's name, a bill number, an item, a date (like 19/10/2026 or October) or an amount in the Search box. Use From and To to pick a range of dates, then tap Search.", "Look through the list.", "Tap one to see its items.", "Tap \"New\" to record a new purchase."],
+    steps: ["Looking for one? Type a supplier's name, a bill number, an item, a date (like 19/10/2026 or October) or an amount in the Search box. Use From and To to pick a range of dates, then tap Search.", "Want them in piles? Choose \"Group by\" Day, Month or Year. Each pile shows how many and the total, with a link to its full report.", "Look through the list.", "Tap one to see its items.", "Tap \"New\" to record a new purchase."],
   },
   "/dashboard/purchases/new": {
     title: "New purchase",
@@ -247,8 +247,14 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Sales report",
     what: "See how much you sold over time. You can look at it by day, month or year, and by customer.",
     when: ["When you want to know which customers or days made the most money.", "When you want to compare one month with another."],
-    steps: ["Choose the dates.", "Choose day, month or year.", "Pick one customer, or leave it on all.", "Read the table: money in, what it cost you, and what was left over."],
-    tip: "For one day with costs and stock too, use the \"Daily report\" on the Invoices page.",
+    steps: ["Choose the dates.", "Choose day, month or year.", "Pick one customer, or leave it on all.", "Read the table: money in, what it cost you, and what was left over.", "Tap any day, month or year in the table to open its full report: sales, things bought, stock that came in, expenses and every receipt."],
+    tip: "Choose \"Monthly\" and tap a month to see everything for that whole month. Choose \"Yearly\" to see a whole year.",
+  },
+  "/dashboard/reports/period": {
+    title: "Full report",
+    what: "Everything that happened in one day, one month or one year, all on one page.",
+    when: ["When you tapped a day, month or year on the Sales report and want the whole story.", "When your accountant asks what happened in a certain month."],
+    steps: ["Read from the top: what you sold, what you bought, the stock that came in, and what you spent.", "Open the receipts list to see every single item that was on each receipt, with its price and VAT.", "The last box shows what was left over after the costs, and the VAT.", "Tap Print or PDF to keep a copy, or \"Back to the sales report\" to go back."],
   },
 
   /* ------------------------------- Stock ------------------------------ */
@@ -321,7 +327,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Expenses",
     what: "An expense is money you spent that is not stock for resale — fuel, cleaning stuff, phone bills, tools and so on. Scanned receipts live here too.",
     when: ["Every time you spend money on the business.", "When you have a shop receipt."],
-    steps: ["Tap \"Scan a receipt\" and take a photo.", "Check the table that appears: each item, how many, the price, the VAT and the total.", "Tick \"Stock\" for food and ingredients so they go into your stock list.", "Tap Save receipt. Tap a saved receipt below to see its full list again."],
+    steps: ["Tap \"Scan a receipt\" and take a photo.", "Check the table that appears: each item, how many, the price, the VAT and the total.", "Tick \"Stock\" for food and ingredients so they go into your stock list.", "Tap Save receipt.", "Tap any row in the list below (or \"See items\") to open it and see every item, price and VAT.", "An old entry with no item list? Open it and tap \"Read the items from the receipt photo\" to rebuild it properly."],
     tip: "Things you tick as stock are saved as a purchase from the shop, so your profit counts them once. They show in green.",
   },
   "/dashboard/bookkeeping/pos": {

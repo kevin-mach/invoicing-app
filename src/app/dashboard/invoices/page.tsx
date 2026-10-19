@@ -3,8 +3,11 @@ import { Plus, FileStack } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { formatGBP } from "@/lib/format";
+import { Fragment } from "react";
 import { cleanDate, matchesSearch } from "@/lib/search";
+import { cleanGroup, groupRows, periodReportHref } from "@/lib/period";
 import { ListSearch } from "@/components/list-search";
+import { GroupHeaderRow } from "@/components/group-header-row";
 
 const statusStyles: Record<string, string> = {
   draft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
@@ -13,7 +16,7 @@ const statusStyles: Record<string, string> = {
   overdue: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
 };
 
-export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string }> }) {
+export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string; group?: string }> }) {
   const org = await getCurrentOrg();
   if (!org) return null;
 
@@ -21,6 +24,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const q = (params.q ?? "").trim().slice(0, 100);
   const from = cleanDate(params.from);
   const to = cleanDate(params.to);
+  const group = cleanGroup(params.group);
 
   const supabase = await createClient();
   let query = supabase
@@ -40,7 +44,6 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     })
   );
   const filtering = !!(q || from || to);
-
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
@@ -61,7 +64,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
-      <ListSearch basePath="/dashboard/invoices" q={q} from={from} to={to} placeholder="Customer, invoice number, date or amount…" />
+      <ListSearch basePath="/dashboard/invoices" q={q} from={from} to={to} group={group} placeholder="Customer, invoice number, date or amount…" />
       {filtering ? (
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Showing {invoices.length} of {allInvoices?.length ?? 0} invoice{(allInvoices?.length ?? 0) === 1 ? "" : "s"}.
@@ -79,7 +82,19 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
             </tr>
           </thead>
           <tbody>
-            {invoices.map((inv) => (
+            {(group === "none" ? [{ key: "", title: "", rows: invoices }] : groupRows(invoices, (i) => i.issue_date, group)).map((g) => (
+              <Fragment key={g.key || "all"}>
+                {group !== "none" ? (
+                  <GroupHeaderRow
+                    title={g.title}
+                    count={g.rows.length}
+                    noun="invoice"
+                    total={g.rows.reduce((s, i) => s + i.total, 0)}
+                    colSpan={4}
+                    reportHref={periodReportHref(g.key)}
+                  />
+                ) : null}
+                {g.rows.map((inv) => (
               <tr key={inv.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                 <td className="px-4 py-3">
                   <Link href={`/dashboard/invoices/${inv.id}`} className="font-medium text-slate-900 hover:underline dark:text-slate-50">
@@ -94,6 +109,8 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                 </td>
                 <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(inv.total)}</td>
               </tr>
+                ))}
+              </Fragment>
             ))}
             {!invoices.length ? (
               <tr>

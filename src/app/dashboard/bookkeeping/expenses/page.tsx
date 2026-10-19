@@ -7,7 +7,9 @@ import { resolvePeriod, toIsoDate } from "@/lib/bookkeeping/period";
 import { formatGBP, roundMoney } from "@/lib/format";
 import { PeriodFilter } from "@/components/bookkeeping/period-filter";
 import { DeleteExpenseButton, ExpenseForm } from "./expense-form";
-import { ReceiptsList } from "./receipts-list";
+import { ReceiptsList, ReceiptTable, type ReceiptRow } from "./receipts-list";
+import { RescanReceiptButton } from "./rescan-button";
+import { ExpandableRow } from "@/components/expandable-row";
 
 export default async function ExpensesPage({
   searchParams,
@@ -28,7 +30,7 @@ export default async function ExpensesPage({
     // Stock bought on a scanned shop receipt is a paid purchase, shown here too so the receipt history is in one place.
     supabase
       .from("purchases")
-      .select("id, purchase_date, paid_with, receipt_url, vendors(name), purchase_line_items(qty, line_total, vat_amount)")
+      .select("id, purchase_date, paid_with, receipt_url, receipt_id, vendors(name), purchase_line_items(qty, line_total, vat_amount)")
       .eq("org_id", org.orgId)
       .not("receipt_url", "is", null)
       .gte("purchase_date", from)
@@ -55,6 +57,7 @@ export default async function ExpensesPage({
       payee: (p.vendors as unknown as { name: string } | null)?.name ?? "Supplier",
       method: p.paid_with ?? "",
       receipt: p.receipt_url,
+      receiptId: p.receipt_id,
       count: lines.length,
       net,
       vat,
@@ -68,6 +71,20 @@ export default async function ExpensesPage({
   );
   const signed = paths.length ? await supabase.storage.from("receipts").createSignedUrls(paths, 3600) : { data: [] };
   const linkByPath = new Map((signed.data ?? []).map((s) => [s.path, s.signedUrl]));
+
+  const receiptList: ReceiptRow[] = (receiptRows ?? []).map((r) => ({
+    id: r.id,
+    merchant: r.merchant,
+    receipt_date: r.receipt_date,
+    payment_method: r.payment_method,
+    net_total: r.net_total,
+    vat_total: r.vat_total,
+    gross_total: r.gross_total,
+    purchase_id: r.purchase_id,
+    receiptLink: r.receipt_url ? (linkByPath.get(r.receipt_url) ?? null) : null,
+    lines: [...(r.scanned_receipt_lines ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+  }));
+  const receiptsById = new Map(receiptList.map((r) => [r.id, r]));
 
   const byCategory = new Map<string, { net: number; vat: number; count: number }>();
   for (const e of expenses) {
@@ -84,20 +101,7 @@ export default async function ExpensesPage({
       <ExpenseForm orgId={org.orgId} today={today} autoSaveScans={org.autoSaveScans} vendors={vendorRows ?? []} items={items} />
       <PeriodFilter basePath="/dashboard/bookkeeping/expenses" from={from} to={to} />
 
-      <ReceiptsList
-        receipts={(receiptRows ?? []).map((r) => ({
-          id: r.id,
-          merchant: r.merchant,
-          receipt_date: r.receipt_date,
-          payment_method: r.payment_method,
-          net_total: r.net_total,
-          vat_total: r.vat_total,
-          gross_total: r.gross_total,
-          purchase_id: r.purchase_id,
-          receiptLink: r.receipt_url ? (linkByPath.get(r.receipt_url) ?? null) : null,
-          lines: [...(r.scanned_receipt_lines ?? [])].sort((a, b) => a.sort_order - b.sort_order),
-        }))}
-      />
+      <ReceiptsList receipts={receiptList} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -117,67 +121,109 @@ export default async function ExpensesPage({
               <tbody>
                 {receiptPurchases.map((p) => {
                   const link = p.receipt ? linkByPath.get(p.receipt) : null;
+                  const receipt = p.receiptId ? receiptsById.get(p.receiptId) : undefined;
                   return (
-                    <tr key={`p-${p.id}`} className="border-b border-slate-100 bg-green-50/40 last:border-0 dark:border-slate-800 dark:bg-green-950/20">
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{p.date}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-slate-900 dark:text-slate-50">{p.payee}</p>
-                        <p className="text-xs capitalize text-slate-500 dark:text-slate-400">
-                          Stock purchase · {p.count} line{p.count === 1 ? "" : "s"}
-                          {p.method ? ` · ${p.method}` : ""}
-                          {link ? (
-                            <>
-                              {" · "}
-                              <a href={link} target="_blank" rel="noreferrer" className="underline">
-                                receipt
-                              </a>
-                            </>
-                          ) : null}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">Stock</td>
-                      <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(p.net)}</td>
-                      <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(p.vat)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-slate-50">{formatGBP(roundMoney(p.net + p.vat))}</td>
-                      <td className="px-4 py-3 text-right">
+                    <ExpandableRow
+                      key={`p-${p.id}`}
+                      colSpan={7}
+                      className="bg-green-50/40 dark:bg-green-950/20"
+                      cells={
+                        <>
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{p.date}</td>
+                          <td className="px-4 py-3">
+                            <p className="text-slate-900 dark:text-slate-50">{p.payee}</p>
+                            <p className="text-xs capitalize text-slate-500 dark:text-slate-400">
+                              Stock purchase · {p.count} line{p.count === 1 ? "" : "s"}
+                              {p.method ? ` · ${p.method}` : ""}
+                              {link ? (
+                                <>
+                                  {" · "}
+                                  <a href={link} target="_blank" rel="noreferrer" className="underline">
+                                    receipt
+                                  </a>
+                                </>
+                              ) : null}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-400">Stock</td>
+                          <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(p.net)}</td>
+                          <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(p.vat)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-slate-50">{formatGBP(roundMoney(p.net + p.vat))}</td>
+                        </>
+                      }
+                      actions={
                         <Link href={`/dashboard/purchases/${p.id}`} className="text-xs text-slate-500 underline hover:text-slate-800 dark:text-slate-400">
-                          View
+                          Purchase
                         </Link>
-                      </td>
-                    </tr>
+                      }
+                      detail={
+                        receipt ? (
+                          <ReceiptTable receipt={receipt} />
+                        ) : (
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Open the <Link href={`/dashboard/purchases/${p.id}`} className="underline">purchase</Link> to see every item.
+                          </p>
+                        )
+                      }
+                    />
                   );
                 })}
                 {expenses.map((e) => {
                   const link = e.receipt_url ? linkByPath.get(e.receipt_url) : null;
+                  const receipt = e.receipt_id ? receiptsById.get(e.receipt_id) : undefined;
                   return (
-                    <tr key={e.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{e.expense_date}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-slate-900 dark:text-slate-50">{e.payee}</p>
-                        <p className="text-xs capitalize text-slate-500 dark:text-slate-400">
-                          {e.payment_method}
-                          {e.description ? ` · ${e.description}` : ""}
-                          {e.bank_transaction_id ? " · from bank" : ""}
-                          {link ? (
-                            <>
-                              {" · "}
-                              <a href={link} target="_blank" rel="noreferrer" className="underline">
-                                receipt
-                              </a>
-                            </>
-                          ) : null}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{e.category}</td>
-                      <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(e.net_amount)}</td>
-                      <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(e.vat_amount)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-slate-50">
-                        {formatGBP(e.total_amount ?? e.net_amount + e.vat_amount)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <DeleteExpenseButton id={e.id} label={e.payee} />
-                      </td>
-                    </tr>
+                    <ExpandableRow
+                      key={e.id}
+                      colSpan={7}
+                      cells={
+                        <>
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-400">{e.expense_date}</td>
+                          <td className="px-4 py-3">
+                            <p className="text-slate-900 dark:text-slate-50">{e.payee}</p>
+                            <p className="text-xs capitalize text-slate-500 dark:text-slate-400">
+                              {e.payment_method}
+                              {e.description ? ` · ${e.description}` : ""}
+                              {e.bank_transaction_id ? " · from bank" : ""}
+                              {link ? (
+                                <>
+                                  {" · "}
+                                  <a href={link} target="_blank" rel="noreferrer" className="underline">
+                                    receipt
+                                  </a>
+                                </>
+                              ) : null}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{e.category}</td>
+                          <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(e.net_amount)}</td>
+                          <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">{formatGBP(e.vat_amount)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-slate-50">
+                            {formatGBP(e.total_amount ?? e.net_amount + e.vat_amount)}
+                          </td>
+                        </>
+                      }
+                      actions={<DeleteExpenseButton id={e.id} label={e.payee} />}
+                      detail={
+                        receipt ? (
+                          <ReceiptTable receipt={receipt} />
+                        ) : (
+                          <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                            <p>
+                              This one was saved as a single amount: {formatGBP(e.net_amount)} before VAT + {formatGBP(e.vat_amount)} VAT ={" "}
+                              {formatGBP(e.total_amount ?? e.net_amount + e.vat_amount)}. No item list was kept.
+                            </p>
+                            {e.receipt_url ? (
+                              <>
+                                <p>The photo of the receipt is saved, so the app can read the items from it again and replace this entry with an itemised one.</p>
+                                <RescanReceiptButton expenseId={e.id} receiptPath={e.receipt_url} label={e.payee} />
+                              </>
+                            ) : (
+                              <p>To get an item list, scan the receipt above.</p>
+                            )}
+                          </div>
+                        )
+                      }
+                    />
                   );
                 })}
                 {!expenses.length && !receiptPurchases.length ? (

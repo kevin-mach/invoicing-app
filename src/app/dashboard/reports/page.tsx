@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { periodReportHref } from "@/lib/period";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { aggregateSales, type Granularity } from "@/lib/reports/sales";
@@ -131,7 +133,11 @@ export default async function ReportsPage({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+        Tap a {granularity} in the table to open its full report — sales, purchases, stock, expenses and every receipt.
+      </p>
+
+      <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
             <tr>
@@ -146,7 +152,11 @@ export default async function ReportsPage({
           <tbody>
             {buckets.map((b) => (
               <tr key={`${b.period}-${b.customerName}`} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                <td className="px-4 py-3 text-slate-900 dark:text-slate-50">{b.period}</td>
+                <td className="px-4 py-3">
+                  <Link href={periodReportHref(b.period)} className="font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-700 dark:text-slate-50">
+                    {b.period}
+                  </Link>
+                </td>
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{b.customerName}</td>
                 <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(b.revenue)}</td>
                 <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(b.cost)}</td>

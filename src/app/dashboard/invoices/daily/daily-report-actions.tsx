@@ -3,7 +3,16 @@
 import { Printer } from "lucide-react";
 import { PdfShareActions } from "@/components/pdf-share-actions";
 
-export function DailyReportActions({ reportDate }: { reportDate: string }) {
+export function DailyReportActions({
+  reportDate,
+  targetId = "daily-invoice-report",
+  title,
+}: {
+  /** Used in the file name (a date, or "from_to_to" for a range). */
+  reportDate: string;
+  targetId?: string;
+  title?: string;
+}) {
   return (
     <div className="no-print flex flex-wrap items-center gap-2">
       <button
@@ -13,9 +22,9 @@ export function DailyReportActions({ reportDate }: { reportDate: string }) {
         <Printer size={16} /> Print
       </button>
       <PdfShareActions
-        targetId="daily-invoice-report"
-        filename={`invoices-${reportDate}.pdf`}
-        title={`Daily invoice report — ${reportDate}`}
+        targetId={targetId}
+        filename={`report-${reportDate}.pdf`}
+        title={title ?? `Daily report — ${reportDate}`}
       />
     </div>
   );
