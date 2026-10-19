@@ -3,6 +3,8 @@ import { Plus, FileStack } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { formatGBP } from "@/lib/format";
+import { cleanDate, matchesSearch } from "@/lib/search";
+import { ListSearch } from "@/components/list-search";
 
 const statusStyles: Record<string, string> = {
   draft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
@@ -11,16 +13,33 @@ const statusStyles: Record<string, string> = {
   overdue: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
 };
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string }> }) {
   const org = await getCurrentOrg();
   if (!org) return null;
 
+  const params = await searchParams;
+  const q = (params.q ?? "").trim().slice(0, 100);
+  const from = cleanDate(params.from);
+  const to = cleanDate(params.to);
+
   const supabase = await createClient();
-  const { data: invoices } = await supabase
+  let query = supabase
     .from("invoices")
     .select("id, number, status, issue_date, total, customers(name)")
     .eq("org_id", org.orgId)
-    .order("issue_date", { ascending: false });
+    .order("issue_date", { ascending: false })
+    .limit(2000);
+  if (from) query = query.gte("issue_date", from);
+  if (to) query = query.lte("issue_date", to);
+  const { data: allInvoices } = await query;
+  const invoices = (allInvoices ?? []).filter((inv) =>
+    matchesSearch(q, {
+      text: [(inv.customers as unknown as { name: string } | null)?.name, inv.number == null ? null : String(inv.number), inv.status],
+      date: inv.issue_date,
+      amounts: [inv.total],
+    })
+  );
+  const filtering = !!(q || from || to);
 
   return (
     <div>
@@ -42,6 +61,13 @@ export default async function InvoicesPage() {
         </div>
       </div>
 
+      <ListSearch basePath="/dashboard/invoices" q={q} from={from} to={to} placeholder="Customer, invoice number, date or amount…" />
+      {filtering ? (
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          Showing {invoices.length} of {allInvoices?.length ?? 0} invoice{(allInvoices?.length ?? 0) === 1 ? "" : "s"}.
+        </p>
+      ) : null}
+
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -53,7 +79,7 @@ export default async function InvoicesPage() {
             </tr>
           </thead>
           <tbody>
-            {invoices?.map((inv) => (
+            {invoices.map((inv) => (
               <tr key={inv.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                 <td className="px-4 py-3">
                   <Link href={`/dashboard/invoices/${inv.id}`} className="font-medium text-slate-900 hover:underline dark:text-slate-50">
@@ -69,10 +95,10 @@ export default async function InvoicesPage() {
                 <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-50">{formatGBP(inv.total)}</td>
               </tr>
             ))}
-            {!invoices?.length ? (
+            {!invoices.length ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                  No invoices yet.
+                  {filtering ? "No invoices match your search." : "No invoices yet."}
                 </td>
               </tr>
             ) : null}

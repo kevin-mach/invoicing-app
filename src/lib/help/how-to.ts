@@ -109,7 +109,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Invoices",
     what: "An invoice is a bill you send to a customer for what you sold them. This page lists them all and shows which ones are paid.",
     when: ["When you want to see who still owes you money.", "When you want to open, print or send an invoice."],
-    steps: ["Look at the list. The status shows if it is draft, sent or paid.", "Tap one to open it.", "Tap \"New invoice\" to make one.", "Tap \"Daily report\" to see everything for one day."],
+    steps: ["Looking for one? Type in the Search box: a customer's name, an invoice number, a date (like 19/10/2026 or October) or an amount. Use From and To to pick a range of dates, then tap Search.", "Look at the list. The status shows if it is draft, sent or paid.", "Tap one to open it.", "Tap \"New\" to make an invoice, or \"Daily report\" to see everything for one day."],
   },
   "/dashboard/invoices/new": {
     title: "New invoice",
@@ -137,7 +137,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Quotes",
     what: "A quote is a price offer you give someone before they buy. It says \"this is what it would cost\".",
     when: ["When someone asks \"how much would it be?\"."],
-    steps: ["Look at your list of quotes.", "Tap one to open or print it.", "Tap \"New quote\" to make one."],
+    steps: ["Looking for one? Type a name, a date (like 19/10/2026 or October) or an amount in the Search box. Use From and To to pick a range of dates, then tap Search.", "Look at your list of quotes.", "Tap one to open or print it.", "Tap \"New\" to make a quote."],
   },
   "/dashboard/quotes/new": {
     title: "New quote",
@@ -158,7 +158,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Purchases",
     what: "A purchase is something you bought from a supplier. This page lists everything you bought. Buying stock here also adds it to your stock list.",
     when: ["When you want to see what you bought and from whom.", "When a supplier sends you a bill."],
-    steps: ["Look through the list.", "Tap one to see its items.", "Tap \"New purchase\" to record a new one."],
+    steps: ["Looking for one? Type a supplier's name, a bill number, an item, a date (like 19/10/2026 or October) or an amount in the Search box. Use From and To to pick a range of dates, then tap Search.", "Look through the list.", "Tap one to see its items.", "Tap \"New\" to record a new purchase."],
   },
   "/dashboard/purchases/new": {
     title: "New purchase",

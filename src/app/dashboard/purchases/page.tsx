@@ -3,17 +3,38 @@ import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { formatGBP } from "@/lib/format";
+import { cleanDate, matchesSearch } from "@/lib/search";
+import { ListSearch } from "@/components/list-search";
 
-export default async function PurchasesPage() {
+export default async function PurchasesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string }> }) {
   const org = await getCurrentOrg();
   if (!org) return null;
 
+  const params = await searchParams;
+  const q = (params.q ?? "").trim().slice(0, 100);
+  const from = cleanDate(params.from);
+  const to = cleanDate(params.to);
+
   const supabase = await createClient();
-  const { data: purchases } = await supabase
+  let query = supabase
     .from("purchases")
-    .select("id, status, purchase_date, vendors(name), purchase_line_items(qty, unit_cost)")
+    .select("id, status, purchase_date, supplier_ref, notes, vendors(name), purchase_line_items(description, qty, unit_cost)")
     .eq("org_id", org.orgId)
-    .order("purchase_date", { ascending: false });
+    .order("purchase_date", { ascending: false })
+    .limit(2000);
+  if (from) query = query.gte("purchase_date", from);
+  if (to) query = query.lte("purchase_date", to);
+  const { data: allPurchases } = await query;
+  const purchases = (allPurchases ?? []).filter((p) => {
+    const lines = (p.purchase_line_items ?? []) as { description: string; qty: number; unit_cost: number }[];
+    const total = lines.reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
+    return matchesSearch(q, {
+      text: [(p.vendors as unknown as { name: string } | null)?.name, p.supplier_ref, p.status, p.notes, ...lines.map((l) => l.description)],
+      date: p.purchase_date,
+      amounts: [total],
+    });
+  });
+  const filtering = !!(q || from || to);
 
   return (
     <div>
@@ -27,6 +48,13 @@ export default async function PurchasesPage() {
         </Link>
       </div>
 
+      <ListSearch basePath="/dashboard/purchases" q={q} from={from} to={to} placeholder="Supplier, bill number, item, date or amount…" />
+      {filtering ? (
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          Showing {purchases.length} of {allPurchases?.length ?? 0} purchase{(allPurchases?.length ?? 0) === 1 ? "" : "s"}.
+        </p>
+      ) : null}
+
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -38,7 +66,7 @@ export default async function PurchasesPage() {
             </tr>
           </thead>
           <tbody>
-            {purchases?.map((p) => {
+            {purchases.map((p) => {
               const lines = (p.purchase_line_items ?? []) as { qty: number; unit_cost: number }[];
               const total = lines.reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
               return (
@@ -58,10 +86,10 @@ export default async function PurchasesPage() {
                 </tr>
               );
             })}
-            {!purchases?.length ? (
+            {!purchases.length ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                  No purchases yet.
+                  {filtering ? "No purchases match your search." : "No purchases yet."}
                 </td>
               </tr>
             ) : null}
