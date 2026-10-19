@@ -9,21 +9,21 @@ export type ProposedEntry = NewEntry & { supplier?: string; customer?: string; i
 /** Asks the person whether to add what a scan found to their database, and only then creates it.
  * `ask` resolves with what was created, or `null` if they chose to skip. */
 export function useNewEntriesPrompt(): {
-  ask: (entries: ProposedEntry[]) => Promise<ScannedEntriesResult | null>;
+  ask: (entries: ProposedEntry[], options?: { skipNote?: string }) => Promise<ScannedEntriesResult | null>;
   prompt: ReactNode;
 } {
-  const [open, setOpen] = useState<{ id: number; entries: ProposedEntry[] } | null>(null);
+  const [open, setOpen] = useState<{ id: number; entries: ProposedEntry[]; skipNote?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const settle = useRef<((r: ScannedEntriesResult | null) => void) | null>(null);
   const counter = useRef(0);
 
-  const ask = (entries: ProposedEntry[]) =>
+  const ask = (entries: ProposedEntry[], options?: { skipNote?: string }) =>
     new Promise<ScannedEntriesResult | null>((resolve) => {
       settle.current?.(null);
       settle.current = resolve;
       setError(null);
-      setOpen({ id: ++counter.current, entries });
+      setOpen({ id: ++counter.current, entries, skipNote: options?.skipNote });
     });
 
   const finish = (result: ScannedEntriesResult | null) => {
@@ -51,7 +51,7 @@ export function useNewEntriesPrompt(): {
   };
 
   const prompt = open ? (
-    <NewEntriesPrompt key={open.id} entries={open.entries} busy={busy} error={error} onAccept={accept} onSkip={() => finish(null)} />
+    <NewEntriesPrompt key={open.id} entries={open.entries} busy={busy} error={error} skipNote={open.skipNote} onAccept={accept} onSkip={() => finish(null)} />
   ) : null;
 
   return { ask, prompt };

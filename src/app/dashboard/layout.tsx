@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentOrg, daysUntil } from "@/lib/supabase/org";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { HowTo } from "@/components/how-to";
 
 export default async function DashboardLayout({
   children,
@@ -35,7 +36,10 @@ export default async function DashboardLayout({
             </Link>
           </div>
         ) : null}
-        <main className="flex-1 bg-slate-50 p-4 md:p-8 dark:bg-slate-950">{children}</main>
+        <main className="flex-1 bg-slate-50 p-4 md:p-8 dark:bg-slate-950">
+          <HowTo />
+          {children}
+        </main>
       </div>
     </div>
   );

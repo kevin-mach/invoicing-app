@@ -9,7 +9,7 @@ import type { CustomerStopData } from "../stock-sheet/stock-sheet-builder";
 import type { ItemOption } from "@/lib/supabase/items";
 
 export type RunReportLine = {
-  type: "purchase" | "invoice" | "cash";
+  type: "purchase" | "invoice" | "cash" | "expense";
   entity: string;
   description: string;
   qty: number;
@@ -27,6 +27,7 @@ const typeLabel: Record<RunReportLine["type"], string> = {
   purchase: "Purchase (cost)",
   invoice: "Invoice (revenue)",
   cash: "Cash item",
+  expense: "Expense (cost)",
 };
 
 export function RunReportExport({
@@ -39,6 +40,8 @@ export function RunReportExport({
   totalCost,
   totalRevenue,
   totalCash,
+  totalExpenses,
+  stockIn,
 }: {
   runDate: string;
   orgName: string;
@@ -49,6 +52,10 @@ export function RunReportExport({
   totalCost: number;
   totalRevenue: number;
   totalCash: number;
+  /** Expenses dated the same day (including those from scanned receipts). */
+  totalExpenses: number;
+  /** Stock that came in that day, per item. */
+  stockIn: { name: string; qty: number }[];
 }) {
   const [tab, setTab] = useState<"customers" | "suppliers">("customers");
   const [exporting, setExporting] = useState(false);
@@ -273,18 +280,29 @@ export function RunReportExport({
             {!lines.length ? (
               <tr>
                 <td colSpan={5} className="py-6 text-center text-slate-400">
-                  No purchases or invoices recorded for this stock sheet yet.
+                  No purchases, expenses or invoices recorded for this day yet.
                 </td>
               </tr>
             ) : null}
           </tbody>
         </table>
 
+        {stockIn.length ? (
+          <div className="mt-4">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Stock that came in today</h4>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{stockIn.map((s) => `${s.qty} × ${s.name}`).join(" · ")}</p>
+          </div>
+        ) : null}
+
         <div className="mt-4 flex justify-end">
           <div className="w-full max-w-xs space-y-1 text-sm">
             <div className="flex justify-between text-slate-600 dark:text-slate-400">
-              <span>Total cost</span>
+              <span>Total cost (stock and supplies)</span>
               <span>{formatGBP(totalCost)}</span>
+            </div>
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+              <span>Total expenses</span>
+              <span>{formatGBP(totalExpenses)}</span>
             </div>
             <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>Total revenue</span>
@@ -296,7 +314,7 @@ export function RunReportExport({
             </div>
             <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
               <span>Profit</span>
-              <span>{formatGBP(totalRevenue - totalCost)}</span>
+              <span>{formatGBP(totalRevenue - totalCost - totalExpenses)}</span>
             </div>
           </div>
         </div>

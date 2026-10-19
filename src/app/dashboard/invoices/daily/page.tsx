@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { DailyReportActions } from "./daily-report-actions";
-import { formatGBP } from "@/lib/format";
+import { formatGBP, roundMoney } from "@/lib/format";
 import { DateInput } from "@/components/date-input";
+import { getExpenses } from "@/lib/bookkeeping/data";
+import { getItemsWithDefaultCost } from "@/lib/supabase/items";
 
 export default async function DailyInvoiceReportPage({
   searchParams,
@@ -50,11 +52,54 @@ export default async function DailyInvoiceReportPage({
     { subtotal: 0, vat: 0, tax: 0, total: 0 }
   );
 
+  // The cost side of the day: everything bought, everything spent, and what that did to stock.
+  const [{ data: purchaseRows }, expenses, catalog, { data: stockRows }] = await Promise.all([
+    supabase
+      .from("purchases")
+      .select("id, receipt_url, vendors(name), purchase_line_items(item_id, description, qty, line_total, vat_amount)")
+      .eq("org_id", org.orgId)
+      .eq("purchase_date", reportDate)
+      .order("created_at"),
+    getExpenses(org.orgId, reportDate, reportDate),
+    getItemsWithDefaultCost(org.orgId),
+    supabase.from("items").select("id, stock_qty").eq("org_id", org.orgId).eq("is_active", true),
+  ]);
+  const itemQty = new Map((stockRows ?? []).map((r) => [r.id, r.stock_qty]));
+
+  type PLine = { item_id: string | null; description: string; qty: number; line_total: number | null; vat_amount: number | null };
+  const purchases = (purchaseRows ?? []).map((p) => {
+    const lines = (p.purchase_line_items ?? []) as PLine[];
+    const net = roundMoney(lines.reduce((s, l) => s + (l.line_total ?? 0), 0));
+    const vat = roundMoney(lines.reduce((s, l) => s + (l.vat_amount ?? 0), 0));
+    return { id: p.id, supplier: (p.vendors as unknown as { name: string } | null)?.name ?? "Supplier", fromReceipt: !!p.receipt_url, count: lines.length, net, vat, lines };
+  });
+  const purchaseNet = roundMoney(purchases.reduce((s, p) => s + p.net, 0));
+  const purchaseVat = roundMoney(purchases.reduce((s, p) => s + p.vat, 0));
+
+  // Stock that came in today, per item.
+  const stockIn = new Map<string, { name: string; qty: number; cost: number }>();
+  for (const p of purchases) {
+    for (const l of p.lines) {
+      if (!l.item_id) continue;
+      const cur = stockIn.get(l.item_id) ?? { name: l.description, qty: 0, cost: 0 };
+      cur.qty = roundMoney(cur.qty + l.qty);
+      cur.cost = roundMoney(cur.cost + (l.line_total ?? 0));
+      stockIn.set(l.item_id, cur);
+    }
+  }
+  const stockInRows = [...stockIn.entries()].map(([id, v]) => ({ id, ...v })).sort((a, b) => a.name.localeCompare(b.name));
+
+  const expenseNet = roundMoney(expenses.reduce((s, e) => s + e.net_amount, 0));
+  const expenseVat = roundMoney(expenses.reduce((s, e) => s + e.vat_amount, 0));
+  const salesNet = roundMoney(totals.subtotal);
+  const profit = roundMoney(salesNet - purchaseNet - expenseNet);
+  const stockValue = roundMoney(catalog.reduce((s, i) => s + Math.max(0, itemQty.get(i.id) ?? 0) * i.default_cost, 0));
+
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Daily invoice report</h1>
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Daily report</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Every invoice issued on a given day, condensed into one report.
+        Everything for one day in one place: what you sold, what you bought, what you spent, and what&apos;s in stock.
       </p>
 
       <form className="no-print mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -131,6 +176,128 @@ export default async function DailyInvoiceReportPage({
               <span>Total</span>
               <span>{formatGBP(totals.total)}</span>
             </div>
+          </div>
+        </div>
+
+        <h3 className="mt-8 font-semibold text-slate-900 dark:text-slate-50">Bought today (stock and supplies)</h3>
+        <table className="mt-2 w-full text-left text-sm">
+          <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <tr>
+              <th className="py-2 font-medium">Supplier</th>
+              <th className="py-2 font-medium">How</th>
+              <th className="py-2 text-right font-medium">Items</th>
+              <th className="py-2 text-right font-medium">Before VAT</th>
+              <th className="py-2 text-right font-medium">VAT</th>
+              <th className="py-2 text-right font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {purchases.map((p) => (
+              <tr key={p.id} className="border-b border-slate-100 dark:border-slate-800">
+                <td className="py-2">{p.supplier}</td>
+                <td className="py-2 text-slate-600 dark:text-slate-400">{p.fromReceipt ? "Receipt" : "Order"}</td>
+                <td className="py-2 text-right">{p.count}</td>
+                <td className="py-2 text-right">{formatGBP(p.net)}</td>
+                <td className="py-2 text-right">{formatGBP(p.vat)}</td>
+                <td className="py-2 text-right font-medium">{formatGBP(roundMoney(p.net + p.vat))}</td>
+              </tr>
+            ))}
+            {!purchases.length ? (
+              <tr>
+                <td colSpan={6} className="py-4 text-center text-slate-400">
+                  Nothing bought on this date.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+
+        <h3 className="mt-8 font-semibold text-slate-900 dark:text-slate-50">Stock that came in today</h3>
+        <table className="mt-2 w-full text-left text-sm">
+          <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <tr>
+              <th className="py-2 font-medium">Item</th>
+              <th className="py-2 text-right font-medium">Quantity added</th>
+              <th className="py-2 text-right font-medium">Cost (before VAT)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stockInRows.map((s) => (
+              <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800">
+                <td className="py-2">{s.name}</td>
+                <td className="py-2 text-right">{s.qty}</td>
+                <td className="py-2 text-right">{formatGBP(s.cost)}</td>
+              </tr>
+            ))}
+            {!stockInRows.length ? (
+              <tr>
+                <td colSpan={3} className="py-4 text-center text-slate-400">
+                  No stock added on this date.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          Stock on hand right now: {catalog.length} item{catalog.length === 1 ? "" : "s"}, worth {formatGBP(stockValue)} at what you last paid.
+        </p>
+
+        <h3 className="mt-8 font-semibold text-slate-900 dark:text-slate-50">Spent today (expenses)</h3>
+        <table className="mt-2 w-full text-left text-sm">
+          <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <tr>
+              <th className="py-2 font-medium">Paid to</th>
+              <th className="py-2 font-medium">What for</th>
+              <th className="py-2 text-right font-medium">Before VAT</th>
+              <th className="py-2 text-right font-medium">VAT</th>
+              <th className="py-2 text-right font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map((e) => (
+              <tr key={e.id} className="border-b border-slate-100 dark:border-slate-800">
+                <td className="py-2">{e.payee}</td>
+                <td className="py-2 text-slate-600 dark:text-slate-400">{e.category}</td>
+                <td className="py-2 text-right">{formatGBP(e.net_amount)}</td>
+                <td className="py-2 text-right">{formatGBP(e.vat_amount)}</td>
+                <td className="py-2 text-right font-medium">{formatGBP(roundMoney(e.net_amount + e.vat_amount))}</td>
+              </tr>
+            ))}
+            {!expenses.length ? (
+              <tr>
+                <td colSpan={5} className="py-4 text-center text-slate-400">
+                  No expenses on this date.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+
+        <h3 className="mt-8 font-semibold text-slate-900 dark:text-slate-50">How the day went</h3>
+        <div className="mt-2 w-full max-w-sm space-y-1 text-sm">
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>Sold (before VAT)</span>
+            <span>{formatGBP(salesNet)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>Bought — stock and supplies (before VAT)</span>
+            <span>-{formatGBP(purchaseNet)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>Spent — expenses (before VAT)</span>
+            <span>-{formatGBP(expenseNet)}</span>
+          </div>
+          <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-50">
+            <span>Left over (profit)</span>
+            <span>{formatGBP(profit)}</span>
+          </div>
+          <div className="flex justify-between pt-2 text-slate-600 dark:text-slate-400">
+            <span>VAT on sales</span>
+            <span>{formatGBP(totals.vat)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>VAT paid on purchases and expenses</span>
+            <span>{formatGBP(roundMoney(purchaseVat + expenseVat))}</span>
           </div>
         </div>
       </div>

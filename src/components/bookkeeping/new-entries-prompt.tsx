@@ -16,12 +16,14 @@ export function NewEntriesPrompt({
   entries,
   busy,
   error,
+  skipNote,
   onAccept,
   onSkip,
 }: {
   entries: NewEntry[];
   busy: boolean;
   error: string | null;
+  skipNote?: string;
   onAccept: (selectedKeys: string[]) => void;
   onSkip: () => void;
 }) {
@@ -76,7 +78,7 @@ export function NewEntriesPrompt({
         </button>
       </div>
       <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
-        Skipping fills in the form with one-off lines for you to check — it won&apos;t save automatically.
+        {skipNote ?? "Skipping fills in the form with one-off lines for you to check — it won't save automatically."}
       </p>
     </div>
   );

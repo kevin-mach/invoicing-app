@@ -5,6 +5,7 @@ export const EXPENSE_CATEGORIES = [
   "Fuel",
   "Vehicle running & repairs",
   "Vehicle insurance & tax",
+  "Food & drink",
   "Packaging & consumables",
   "Cleaning supplies",
   "Utilities",
@@ -22,6 +23,21 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+/** Groups for things kept in stock — used to categorise new items added from a scanned receipt. */
+export const STOCK_GROUPS = [
+  "Meat & poultry",
+  "Fish & seafood",
+  "Fruit & veg",
+  "Dairy & eggs",
+  "Bakery",
+  "Dry goods & ingredients",
+  "Sauces & condiments",
+  "Drinks",
+  "Frozen",
+  "Household & packaging",
+  "Other",
+] as const;
 
 export const PAYMENT_METHODS = ["bank", "card", "cash", "other"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];

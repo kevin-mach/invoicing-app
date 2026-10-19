@@ -1,0 +1,441 @@
+/** "How to use this page" guides, written so a 10-year-old could follow them. One entry per page,
+ * found by the page's address (see findHowTo). Keep sentences short and words simple. */
+
+export type HowTo = {
+  title: string;
+  /** What this page is, in a sentence or two. */
+  what: string;
+  /** When to come here. */
+  when: string[];
+  /** Step by step. */
+  steps: string[];
+  tip?: string;
+};
+
+const SCAN_TIP = "Short on time? Tap a \"Scan\" button and take a photo — the app reads it and fills things in for you. You always get to check it first.";
+
+export const HOW_TO: Record<string, HowTo> = {
+  /* ------------------------------- Home ------------------------------- */
+  "/dashboard": {
+    title: "Home",
+    what: "This is your starting page. It shows how many customers, suppliers, items and draft invoices you have, and gives you shortcuts to the jobs you do most.",
+    when: ["When you open the app and want to know where to begin.", "When you want to plan today's shopping or write a new invoice fast."],
+    steps: ["Look at the numbers to see what you already have.", "Tap \"Plan a stock sheet\" to work out what to buy today.", "Tap \"New invoice\" to bill a customer.", "Use the menu on the left (or the ☰ button on a phone) to go anywhere else."],
+    tip: "Every page has a box like this at the top. Tap it any time you forget what a page is for.",
+  },
+
+  /* ----------------------------- Customers ---------------------------- */
+  "/dashboard/customers": {
+    title: "Customers",
+    what: "A customer is someone you sell to, like a restaurant or a shop. This page is your list of all of them.",
+    when: ["When you want to find a customer or check their details.", "Before you can write an invoice, because every invoice needs a customer."],
+    steps: ["Look through the list or search for a name.", "Tap a customer to see their details and invoices.", "Tap \"New customer\" to add someone new.", "Have a long list already? Use \"Import\" to add many at once."],
+  },
+  "/dashboard/customers/new": {
+    title: "Add a customer",
+    what: "Fill in a form to add a new customer to your list.",
+    when: ["When you start selling to someone new."],
+    steps: ["Type their name (this is the only thing you must fill in).", "Add an email, phone number and address if you have them.", "Tap Save. They are now ready to use on invoices."],
+  },
+  "/dashboard/customers/import": {
+    title: "Import customers",
+    what: "Add lots of customers in one go from a spreadsheet instead of typing them one by one.",
+    when: ["When you already have a list of customers in Excel or a CSV file."],
+    steps: ["Get your spreadsheet ready with a column for each thing (name, email, and so on).", "Choose the file here.", "Check the preview looks right.", "Tap Import."],
+    tip: "Do a small file first to make sure it works.",
+  },
+  "/dashboard/customers/[id]": {
+    title: "A customer",
+    what: "Everything about one customer: their details, their invoices, and who from their team can log in.",
+    when: ["When you need to change their details.", "When you want to give them (or their staff) a login so they can see their own invoices."],
+    steps: ["Check or change the details and save.", "Look at the invoices below to see what they owe.", "Under \"Portal access\", type an email and send an invite so they can log in and see their invoices."],
+  },
+
+  /* ----------------------------- Suppliers ---------------------------- */
+  "/dashboard/vendors": {
+    title: "Suppliers",
+    what: "A supplier is someone you buy from, like a wholesaler or a shop. This is your list of them.",
+    when: ["When you want to find a supplier.", "Before you record a purchase, because every purchase needs a supplier."],
+    steps: ["Look through the list or search.", "Tap a supplier to see their details and what you bought from them.", "Tap \"New supplier\" to add one.", "Scanned a receipt from a new shop? The app can add the shop here for you — it always asks first."],
+  },
+  "/dashboard/vendors/new": {
+    title: "Add a supplier",
+    what: "Fill in a form to add a new supplier.",
+    when: ["When you start buying from a new place."],
+    steps: ["Type their name (the only thing you must fill in).", "Add contact details and notes if you want.", "Tap Save."],
+  },
+  "/dashboard/vendors/import": {
+    title: "Import suppliers",
+    what: "Add many suppliers at once from a spreadsheet.",
+    when: ["When you already have your suppliers in Excel or a CSV file."],
+    steps: ["Get your spreadsheet ready.", "Choose the file here.", "Check the preview.", "Tap Import."],
+  },
+  "/dashboard/vendors/[id]": {
+    title: "A supplier",
+    what: "Everything about one supplier: details, what you bought, and who from their team can log in.",
+    when: ["When you need to change their details.", "When you want to let them see your orders by giving them a login."],
+    steps: ["Check or change the details and save.", "Look at the purchases to see what you bought.", "Under \"Portal access\", invite their team by email."],
+  },
+
+  /* ------------------------------- Items ------------------------------ */
+  "/dashboard/items": {
+    title: "Items",
+    what: "Your catalogue: a list of everything you buy and sell, like chicken, tomatoes or olive oil. It also keeps how much of each you have in stock.",
+    when: ["When you want to check a price or how much stock you have.", "When you want to add something new you sell or buy."],
+    steps: ["Search for an item or scroll the list.", "Tap an item to change its price, unit or VAT.", "Tap \"New item\" to add one.", "Items are also added automatically when you scan a receipt — after you say yes."],
+    tip: "VAT is a tax that gets added to some prices. Food is often 0%. Most other things are 20%.",
+  },
+  "/dashboard/items/new": {
+    title: "Add an item",
+    what: "Add something new to your catalogue.",
+    when: ["When you start buying or selling something new."],
+    steps: ["Type the name.", "Choose the unit (like kg, box or bottle).", "Type the price you sell it for and the VAT rate.", "Type how many you have right now, if you know.", "Tap Save."],
+  },
+  "/dashboard/items/import": {
+    title: "Import items",
+    what: "Add lots of items at once from a spreadsheet.",
+    when: ["When you already have a price list in Excel or a CSV file."],
+    steps: ["Get your spreadsheet ready.", "Choose the file here.", "Check the preview.", "Tap Import."],
+  },
+  "/dashboard/items/[id]": {
+    title: "An item",
+    what: "The details of one item: its name, price, unit, VAT and how many you have.",
+    when: ["When a price changes.", "When you want to hide an item you no longer use."],
+    steps: ["Change what you need.", "Untick \"Active\" to hide it from lists without deleting it.", "Tap Save."],
+  },
+
+  /* ------------------------------ Invoices ---------------------------- */
+  "/dashboard/invoices": {
+    title: "Invoices",
+    what: "An invoice is a bill you send to a customer for what you sold them. This page lists them all and shows which ones are paid.",
+    when: ["When you want to see who still owes you money.", "When you want to open, print or send an invoice."],
+    steps: ["Look at the list. The status shows if it is draft, sent or paid.", "Tap one to open it.", "Tap \"New invoice\" to make one.", "Tap \"Daily report\" to see everything for one day."],
+  },
+  "/dashboard/invoices/new": {
+    title: "New invoice",
+    what: "Make a bill for a customer.",
+    when: ["When you have delivered something and want to be paid."],
+    steps: ["Pick the customer.", "Add the items they bought. You can type them, tap a suggestion, or tap \"Scan a photo\" of the order or delivery note.", "Check the quantities and prices.", "Tap Save. You can then print it, send it or share the PDF."],
+    tip: SCAN_TIP,
+  },
+  "/dashboard/invoices/daily": {
+    title: "Daily report",
+    what: "Everything for one day on one page: what you sold, what you bought, what stock came in, what you spent, and how much was left over.",
+    when: ["At the end of the day to see how it went.", "When your accountant asks what happened on a certain day."],
+    steps: ["Choose the date and tap View.", "Read down the page: sales, then things bought, then stock that came in, then expenses.", "The last box shows what was left over after the costs.", "Tap Print or PDF to keep a copy."],
+    tip: "Receipts you scanned show up here on their date, so the day's totals stay right.",
+  },
+  "/dashboard/invoices/[id]": {
+    title: "An invoice",
+    what: "One invoice. You can see it, change it, print it, send it and mark it paid.",
+    when: ["When a customer asks for a copy.", "When they have paid and you want to record it."],
+    steps: ["Check the lines and the total.", "Change anything that is wrong and save.", "Tap Print or PDF to share it.", "When they pay, record the payment so it shows as paid."],
+  },
+
+  /* ------------------------------- Quotes ----------------------------- */
+  "/dashboard/quotes": {
+    title: "Quotes",
+    what: "A quote is a price offer you give someone before they buy. It says \"this is what it would cost\".",
+    when: ["When someone asks \"how much would it be?\"."],
+    steps: ["Look at your list of quotes.", "Tap one to open or print it.", "Tap \"New quote\" to make one."],
+  },
+  "/dashboard/quotes/new": {
+    title: "New quote",
+    what: "Build a price list for someone who might become a customer. They don't need to be in your customer list yet.",
+    when: ["When you want to tell someone the price before they say yes."],
+    steps: ["Type who it is for.", "Add the items and prices. Or tap \"Scan a photo\" of their list.", "Check the total.", "Tap Create quote, then print or share it."],
+    tip: SCAN_TIP,
+  },
+  "/dashboard/quotes/[id]": {
+    title: "A quote",
+    what: "One quote you made earlier.",
+    when: ["When the person comes back and says yes, or wants a change."],
+    steps: ["Read it through.", "Change the items or prices and save.", "Print it or share the PDF."],
+  },
+
+  /* ----------------------------- Purchases ---------------------------- */
+  "/dashboard/purchases": {
+    title: "Purchases",
+    what: "A purchase is something you bought from a supplier. This page lists everything you bought. Buying stock here also adds it to your stock list.",
+    when: ["When you want to see what you bought and from whom.", "When a supplier sends you a bill."],
+    steps: ["Look through the list.", "Tap one to see its items.", "Tap \"New purchase\" to record a new one."],
+  },
+  "/dashboard/purchases/new": {
+    title: "New purchase",
+    what: "Write down something you bought from a supplier. The items you buy are added to your stock.",
+    when: ["When a supplier gives you a bill or a delivery note."],
+    steps: ["Pick the supplier.", "Tap \"Scan with AI\" and take a photo (or choose a PDF) of the bill. Or type the items yourself.", "Check the supplier, the bill number, the date and every item.", "Tap Save purchase."],
+    tip: SCAN_TIP,
+  },
+  "/dashboard/purchases/[id]": {
+    title: "A purchase",
+    what: "One thing you bought: the supplier, the items, the prices and the VAT.",
+    when: ["When you want to check a bill.", "When you have paid it and want to mark it paid."],
+    steps: ["Read the items and the total.", "Mark it as reviewed once you have checked it.", "Delete it if it was a mistake (only the owner or an admin can)."],
+  },
+
+  /* ----------------------------- Recurring ---------------------------- */
+  "/dashboard/templates": {
+    title: "Recurring invoices",
+    what: "Some customers buy the same things every week or month. A recurring template makes that invoice for you again and again, so you don't have to type it each time.",
+    when: ["When a customer orders the same thing on a regular schedule."],
+    steps: ["Look at your templates.", "Tap one to change it.", "Tap \"New template\" to set one up."],
+  },
+  "/dashboard/templates/new": {
+    title: "New recurring invoice",
+    what: "Set up an invoice that repeats by itself.",
+    when: ["When the same customer buys the same things every week or month."],
+    steps: ["Pick the customer.", "Choose how often (weekly or monthly) and when it starts.", "Add the items.", "Save. The app now makes a draft invoice on schedule."],
+  },
+  "/dashboard/templates/[id]": {
+    title: "A recurring invoice",
+    what: "One repeating invoice.",
+    when: ["When the order changes, or you want to pause it."],
+    steps: ["Change the items or the schedule.", "Switch it off to pause it.", "Save."],
+  },
+
+  /* --------------------------- Stock sheets / runs -------------------- */
+  "/dashboard/runs": {
+    title: "Stock sheets",
+    what: "A stock sheet is your plan for one day's run: what customers need, what to buy, and where to go. Each one is for a single date.",
+    when: ["At the start of the day to plan what to buy.", "At the end of the day to look at the report."],
+    steps: ["Tap \"New stock sheet\" to start today's.", "Tap an old one to open it.", "Inside, add stops (suppliers to collect from and customers to deliver to)."],
+  },
+  "/dashboard/runs/new": {
+    title: "New stock sheet",
+    what: "Start a plan for a day.",
+    when: ["When you begin planning a new day's run."],
+    steps: ["Choose the date.", "Tap Create.", "Then add your stops on the next page."],
+  },
+  "/dashboard/runs/[id]": {
+    title: "One day's stock sheet",
+    what: "The plan for one day. It is made of stops. A stop is a place you collect from (a supplier) or deliver to (a customer).",
+    when: ["When you are planning, or doing, the day's run."],
+    steps: ["Pick \"Supplier\" or \"Customer\" and who it is, then tap \"Add stop\".", "Tap \"Checklist\" on a stop to list the items.", "Tap \"Stock count\" to build the order to send to suppliers.", "Tap \"Condensed report\" at the end of the day."],
+  },
+  "/dashboard/runs/[id]/checklist/[id]": {
+    title: "Checklist for one stop",
+    what: "The list of items for one stop. For a customer it becomes their invoice. For a supplier it becomes a purchase.",
+    when: ["When you are loading up, delivering or collecting."],
+    steps: ["Add items: search, tap a suggestion, or tap \"Scan a photo\" of the delivery note or the goods.", "Check the quantities and prices.", "Tap \"Save checklist\" (or turn on auto-save in Connections).", "Tap \"Create invoice\" or \"Create purchase\" when it is finished."],
+    tip: "A saved checklist goes straight into the day's report.",
+  },
+  "/dashboard/runs/[id]/stock-sheet": {
+    title: "Order list",
+    what: "Work out what you need to buy today and from whom. It makes a sheet you can print, send as a PDF or open in Excel.",
+    when: ["Before you go shopping or phone your suppliers."],
+    steps: ["Tick the suppliers you are ordering from today.", "Add items: tap the quick buttons for what customers ordered, search, or tap \"Scan a photo of what's needed\".", "Check each row has a supplier.", "Tap Print, PDF or Export Excel."],
+  },
+  "/dashboard/runs/[id]/report": {
+    title: "Condensed report",
+    what: "The final report for the day: what customers ordered, what you picked up, and the money (what you spent, what you earned, what was left over).",
+    when: ["At the end of the day."],
+    steps: ["Switch between \"Customers\" and \"Suppliers\" to see each list.", "Scroll to the money box at the bottom: costs, expenses, sales and profit.", "Costs and expenses from scanned receipts on this date are included.", "Tap Print, Download PDF, Share or Export Excel."],
+  },
+
+  /* ------------------------------ Payments ---------------------------- */
+  "/dashboard/payments": {
+    title: "Payments (your plan)",
+    what: "This page is about paying for this app: your plan, your card and the bills the app sends you.",
+    when: ["When you want to change your plan.", "When you want to update your card or download a bill."],
+    steps: ["See your current plan.", "Choose a different plan if you need to.", "Tap \"Payment method & invoices\" to update your card and see past bills."],
+    tip: "This is not where your customers pay you. Those payments are on each invoice.",
+  },
+
+  /* ------------------------------- Reports ---------------------------- */
+  "/dashboard/reports": {
+    title: "Sales report",
+    what: "See how much you sold over time. You can look at it by day, month or year, and by customer.",
+    when: ["When you want to know which customers or days made the most money.", "When you want to compare one month with another."],
+    steps: ["Choose the dates.", "Choose day, month or year.", "Pick one customer, or leave it on all.", "Read the table: money in, what it cost you, and what was left over."],
+    tip: "For one day with costs and stock too, use the \"Daily report\" on the Invoices page.",
+  },
+
+  /* ------------------------------- Stock ------------------------------ */
+  "/dashboard/stock": {
+    title: "Stock levels",
+    what: "This shows how much of everything you have right now, and what it is worth.",
+    when: ["When you want to know if you are running low.", "When you want to know the value of your stock."],
+    steps: ["Look at the numbers at the top: stock value, items you track, items that have run out.", "Scroll the list to see how many of each you have.", "Stock goes up when you record a purchase or scan a receipt, and goes down when you log waste or do a count."],
+  },
+  "/dashboard/stock?tab=wastage": {
+    title: "Wastage",
+    what: "Wastage is food or things you throw away or lose, like food that went off. Writing it down shows where money is leaking out.",
+    when: ["Every time something is thrown away, spoiled or lost."],
+    steps: ["Pick the item.", "Type how much was wasted.", "Choose why (for example it went off or it was dropped).", "Tap Log wastage. Your stock goes down by that much."],
+  },
+  "/dashboard/stock?tab=counts": {
+    title: "Stock counts",
+    what: "A stock count is when you count what is really on the shelf and compare it with what the app thinks you have.",
+    when: ["Once a week or once a month, to catch missing stock."],
+    steps: ["Count each item on the shelf.", "Type the numbers in, or tap \"Scan everything you have\" and take a photo of the shelf or your list.", "Look at the Difference column: red means less than expected.", "Tick \"Update stock levels\" if you want the app to use your numbers, then tap Save count."],
+    tip: SCAN_TIP,
+  },
+
+  /* ------------------------------ Cash-up ----------------------------- */
+  "/dashboard/cash-up": {
+    title: "Cash-up",
+    what: "Cash-up is counting the money in the till at the end of the day and checking it matches what the till says you should have.",
+    when: ["At closing time, every day you take cash."],
+    steps: ["Type what the till system says you sold in cash and by card.", "Count the notes and coins and type them in — or tap \"Scan the till\" and take a photo.", "Look at the Variance box. Green is perfect. Amber or red means money is over or missing.", "Tap Save cash-up."],
+    tip: "Saving again for the same day and till replaces the old one.",
+  },
+
+  /* -------------------------------- Team ------------------------------ */
+  "/dashboard/team": {
+    title: "Team",
+    what: "The people who can log in to your business. You choose what each person is allowed to see.",
+    when: ["When you hire someone new, or someone leaves."],
+    steps: ["Type their email and choose a role.", "Tap Invite. They get an email with a link.", "To remove someone, use the button next to their name."],
+    tip: "Owner and admin can change things. Bookkeeper can see the money pages. Staff do the daily jobs.",
+  },
+
+  /* ---------------------------- Bookkeeping --------------------------- */
+  "/dashboard/bookkeeping": {
+    title: "Bookkeeping overview",
+    what: "A summary of the money side of your business for a period: what came in, what went out, what you owe and are owed.",
+    when: ["When you want a quick health check of the business."],
+    steps: ["Choose the dates at the top.", "Look at the cards: sales, costs, profit.", "Check any orange warning boxes — they are things to fix.", "Use the tabs above to go deeper."],
+    tip: "Bookkeeping is just keeping a tidy record of money in and money out.",
+  },
+  "/dashboard/bookkeeping/bank": {
+    title: "Bank",
+    what: "Your bank's money movements, shown in a list. The app helps match each one to an invoice, a bill or an expense so nothing is missed.",
+    when: ["When you want to check your bank against your records."],
+    steps: ["Import your bank file (CSV), or connect your bank in Connections.", "Look at each line. The app suggests a match.", "Accept the match, or pick the right invoice, bill or expense.", "Lines with nothing left to match are marked done."],
+  },
+  "/dashboard/bookkeeping/receivables": {
+    title: "Money owed to you",
+    what: "Customers who have not paid you yet, and how late each one is.",
+    when: ["When you want to chase people who owe you money."],
+    steps: ["Look at the ageing table: it groups what is owed by how old it is.", "Open an invoice from the list below.", "Record the payment when it arrives."],
+  },
+  "/dashboard/bookkeeping/payables": {
+    title: "Money you owe",
+    what: "Bills from suppliers that you have not paid yet.",
+    when: ["When you want to know what to pay and when."],
+    steps: ["Look at the bills, newest due first.", "Tap \"Mark paid\" when you pay one.", "Change the VAT on a bill with Edit if it is wrong."],
+    tip: "Shop receipts you scan are already paid, so they do not appear here.",
+  },
+  "/dashboard/bookkeeping/expenses": {
+    title: "Expenses",
+    what: "An expense is money you spent that is not stock for resale — fuel, cleaning stuff, phone bills, tools and so on. Scanned receipts live here too.",
+    when: ["Every time you spend money on the business.", "When you have a shop receipt."],
+    steps: ["Tap \"Scan a receipt\" and take a photo.", "Check the table that appears: each item, how many, the price, the VAT and the total.", "Tick \"Stock\" for food and ingredients so they go into your stock list.", "Tap Save receipt. Tap a saved receipt below to see its full list again."],
+    tip: "Things you tick as stock are saved as a purchase from the shop, so your profit counts them once. They show in green.",
+  },
+  "/dashboard/bookkeeping/pos": {
+    title: "POS and sales",
+    what: "POS means the till system you use to take payment. This page brings in your till's daily sales so they count in your records.",
+    when: ["When you take sales through a till or card machine."],
+    steps: ["Import your daily sales file, or connect Square in Connections.", "Check the totals for cash, card and other.", "These figures also fill in the Cash-up page for you."],
+  },
+  "/dashboard/bookkeeping/payroll": {
+    title: "Payroll",
+    what: "Payroll is paying your staff. This page records each pay run and what you paid.",
+    when: ["Every time you pay your team."],
+    steps: ["Start a new pay run for the period.", "Add each person and what they were paid.", "Save it. It is counted in your profit and loss."],
+  },
+  "/dashboard/bookkeeping/vat": {
+    title: "VAT",
+    what: "VAT is a tax added to many prices. Each period you tell the government how much VAT you charged and how much you paid. This page works those numbers out.",
+    when: ["Before you send your VAT return."],
+    steps: ["Choose the period (usually a quarter).", "Check your VAT number is filled in at the top.", "Read the numbered boxes — they match the boxes on the official form.", "Use Connections to send it to HMRC when you are ready."],
+    tip: "Your invoices, bills, expenses and scanned receipts all feed this page automatically.",
+  },
+  "/dashboard/bookkeeping/pnl": {
+    title: "Profit and loss",
+    what: "Profit is what is left after you take away what things cost. This page shows it month by month.",
+    when: ["When you want to know if the business is making money."],
+    steps: ["Choose the dates.", "Read down: sales, then costs, then staff, then expenses, then profit.", "Compare months to spot good and bad ones."],
+  },
+  "/dashboard/bookkeeping/export": {
+    title: "Accountant pack",
+    what: "Download your records in files an accountant can open.",
+    when: ["When your accountant asks for your books.", "At the end of the year."],
+    steps: ["Choose the dates.", "Tap the download buttons for the files you need.", "Send them to your accountant."],
+  },
+  "/dashboard/bookkeeping/connections": {
+    title: "Connections and AI scanning",
+    what: "Connect the app to other services (your bank, your till, accounting software, HMRC). It also has the settings for photo scanning.",
+    when: ["When you want your bank or till to feed in automatically.", "When you want scans to save by themselves."],
+    steps: ["Tap Connect next to a service and follow the steps.", "Under \"AI photo scanning\", tick \"Save scanned photos automatically\" if you want scans to save without you pressing Save, then tap Save.", "If something says \"Not switched on for this server\", ask whoever looks after the app."],
+    tip: "Even with auto-save on, the app always asks before adding a new supplier or item.",
+  },
+
+  /* --------------------------- Customer portal ------------------------ */
+  "/customer-portal": {
+    title: "Your home page",
+    what: "This is your own page for seeing what you have bought and what you owe.",
+    when: ["When you want a quick look at your account."],
+    steps: ["Look at the numbers.", "Use the menu to see invoices, items, deliveries and more."],
+  },
+  "/customer-portal/invoices": {
+    title: "Your invoices",
+    what: "All the bills you have been sent.",
+    when: ["When you want to see what you owe or pay a bill."],
+    steps: ["Look at the list.", "Tap one to open it.", "Download or print the PDF."],
+  },
+  "/customer-portal/invoices/[id]": {
+    title: "An invoice",
+    what: "One bill, with every item and the total.",
+    when: ["When you need to check or pay it."],
+    steps: ["Check the items and the total.", "Tap Print or PDF to keep a copy."],
+  },
+  "/customer-portal/items": { title: "Items", what: "The things you can buy and their prices.", when: ["When you want to check a price."], steps: ["Search for an item.", "Read its price."] },
+  "/customer-portal/deliveries": { title: "Deliveries", what: "What has been delivered to you and when.", when: ["When you want to check an order arrived."], steps: ["Choose a date.", "See what came on that day."] },
+  "/customer-portal/recurring": { title: "Regular orders", what: "Orders that are made for you again and again on a schedule.", when: ["When you want to see what repeats."], steps: ["Look at the list.", "See what is in each one and when it happens."] },
+  "/customer-portal/reports": { title: "Reports", what: "A summary of what you have bought over time.", when: ["When you want to see your spending."], steps: ["Choose the dates.", "Read the totals."] },
+  "/customer-portal/team": {
+    title: "Your team",
+    what: "The people from your business who can log in here.",
+    when: ["When a new person needs to see the invoices."],
+    steps: ["Type their email and choose a role.", "Tap Invite.", "Remove people who have left."],
+  },
+
+  /* --------------------------- Supplier portal ------------------------ */
+  "/supplier-portal": {
+    title: "Your home page",
+    what: "This is your own page for seeing the orders you have been given.",
+    when: ["When you want a quick look at your account."],
+    steps: ["Look at the numbers.", "Use the menu to see purchases, items, deliveries and more."],
+  },
+  "/supplier-portal/purchases": {
+    title: "Orders",
+    what: "All the orders placed with you.",
+    when: ["When you want to know what to prepare."],
+    steps: ["Look at the list.", "Tap one to see the items."],
+  },
+  "/supplier-portal/purchases/[id]": {
+    title: "An order",
+    what: "One order, with every item and quantity.",
+    when: ["When you are getting an order ready."],
+    steps: ["Read the items and quantities.", "Tap Print or PDF if you need a copy."],
+  },
+  "/supplier-portal/items": { title: "Items", what: "The things you supply and their prices.", when: ["When you want to check a price."], steps: ["Search for an item.", "Read its price."] },
+  "/supplier-portal/deliveries": { title: "Deliveries", what: "What is due to be collected or delivered, and when.", when: ["When you are planning your day."], steps: ["Choose a date.", "See what is expected."] },
+  "/supplier-portal/reports": { title: "Reports", what: "A summary of what has been ordered from you over time.", when: ["When you want to see how much you supply."], steps: ["Choose the dates.", "Read the totals."] },
+  "/supplier-portal/team": {
+    title: "Your team",
+    what: "The people from your business who can log in here.",
+    when: ["When a new person needs to see the orders."],
+    steps: ["Type their email and choose a role.", "Tap Invite.", "Remove people who have left."],
+  },
+};
+
+const ID_SEGMENT = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d+)$/i;
+
+/** Finds the guide for an address, treating any id in the path as "[id]". The Stock page has three
+ * tabs chosen by `?tab=`. */
+export function findHowTo(pathname: string, tab?: string | null): HowTo | null {
+  const clean = pathname.replace(/\/+$/, "") || "/";
+  const key = clean
+    .split("/")
+    .map((seg) => (ID_SEGMENT.test(seg) ? "[id]" : seg))
+    .join("/");
+  if (key === "/dashboard/stock") {
+    if (tab === "wastage") return HOW_TO["/dashboard/stock?tab=wastage"];
+    if (tab === "counts") return HOW_TO["/dashboard/stock?tab=counts"];
+  }
+  return HOW_TO[key] ?? null;
+}

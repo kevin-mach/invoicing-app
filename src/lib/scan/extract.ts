@@ -1,4 +1,4 @@
-import { EXPENSE_CATEGORIES } from "@/lib/bookkeeping/categories";
+import { EXPENSE_CATEGORIES, STOCK_GROUPS } from "@/lib/bookkeeping/categories";
 import { DENOMINATIONS } from "@/lib/cashup";
 import { roundMoney, roundQty } from "@/lib/format";
 
@@ -9,12 +9,34 @@ import { roundMoney, roundQty } from "@/lib/format";
 
 export type ScanKind = "receipt" | "bill" | "till" | "list";
 
+/** One printed line of a receipt. `amount` is exactly what was printed for the line (negative for a
+ * discount or coupon) — whether it includes VAT is told by the receipt's `pricesIncludeVat`. */
+export type ReceiptLine = {
+  description: string;
+  qty: number;
+  amount: number;
+  vatRate: number | null;
+  category: string | null;
+  /** For stock items: the kind of product (Meat & poultry, Fruit & veg, Dairy & eggs…). */
+  itemGroup: string | null;
+  /** Goods bought to sell or use up (food, drink, ingredients) rather than a one-off cost. */
+  isStock: boolean;
+};
+
 export type ReceiptExtraction = {
   kind: "receipt";
   payee: string | null;
   date: string | null;
-  gross: number | null;
-  vatRate: number | null;
+  paymentMethod: "cash" | "card" | null;
+  /** True when line prices already include VAT, false when VAT is added at the bottom (trade
+   * receipts such as Costco), null when the receipt doesn't say. */
+  pricesIncludeVat: boolean | null;
+  lines: ReceiptLine[];
+  /** The VAT table if the receipt prints one: net and VAT per rate. */
+  vatSummary: { rate: number; net: number | null; vat: number | null }[];
+  netTotal: number | null;
+  vatTotal: number | null;
+  grossTotal: number | null;
   category: string | null;
   notes: string | null;
 };
@@ -56,18 +78,59 @@ const DENOM_KEYS = DENOMINATIONS.map((d) => d.key);
 const TOOLS: Record<ScanKind, { name: string; description: string; input_schema: Record<string, unknown> }> = {
   receipt: {
     name: "record_receipt",
-    description: "Structured data read from a photo of a single purchase or expense receipt.",
+    description: "Structured data read from a photo of a single purchase receipt, every printed line included.",
     input_schema: {
       type: "object",
       properties: {
-        payee: { type: "string", description: "The business name printed on the receipt." },
+        payee: { type: "string", description: "The shop or business's trading name (e.g. \"Costco Wholesale\", \"Primark\"), not the address or legal entity if a shorter trading name is printed." },
         date: { type: "string", description: "Date of the transaction, as YYYY-MM-DD. Omit if not legible." },
-        gross_amount: { type: "number", description: "The final total actually paid, including any VAT." },
-        vat_rate: { type: "number", enum: VAT_RATE_ENUM, description: "The UK VAT rate this receipt implies — 0, 5 or 20. Best guess from the total/VAT shown." },
-        category: { type: "string", enum: [...EXPENSE_CATEGORIES], description: "The best-matching expense category for what was bought." },
+        payment_method: { type: "string", enum: ["cash", "card"], description: "How it was paid, if the receipt shows it." },
+        prices_include_vat: {
+          type: "boolean",
+          description:
+            "true if the line prices already include VAT (typical retail receipt). false if line prices are BEFORE VAT and the VAT is added at the bottom (trade receipts: look for 'TOTAL (EXCL VAT)', 'VAT Amount', 'TOTAL (INCL VAT)', or line prices that add up to the ex-VAT total). Omit if the receipt shows no VAT information at all.",
+        },
+        lines: {
+          type: "array",
+          description: "EVERY printed item line, in order, each as one entry — do not merge, skip or summarise lines. Include discount/coupon lines as negative amounts.",
+          items: {
+            type: "object",
+            properties: {
+              description: { type: "string", description: "The item name, tidied into readable words (e.g. 'KS ROTISS CHICKEN' -> 'Rotisserie Chicken', 'NDTR MIFFY SHERPA' -> 'Miffy Sherpa'). Keep size/pack info such as '2x750ml'." },
+              qty: { type: "number", description: "Quantity bought, e.g. from '2 x' or '3x'. Use 1 if not shown." },
+              amount: { type: "number", description: "The amount printed for this line (the line total, not the unit price when qty > 1). Negative for a discount, coupon, rebate or a number with a trailing minus (e.g. '6.00-')." },
+              vat_rate: { type: "number", enum: VAT_RATE_ENUM, description: "This line's UK VAT rate, using the receipt's VAT code legend where there is one (e.g. 'A' = 20%, 'Z' = 0%). Omit if it cannot be told." },
+              category: { type: "string", enum: [...EXPENSE_CATEGORIES], description: "The best-matching business expense category for this item." },
+              is_stock: { type: "boolean", description: "true for food, drink and ingredients or goods bought to sell or use up in a kitchen; false for one-off costs like clothing, tools, equipment, fuel or fees." },
+              item_group: { type: "string", enum: [...STOCK_GROUPS], description: "For stock items only: the kind of product it is (e.g. chicken -> 'Meat & poultry', bananas -> 'Fruit & veg', yoghurt -> 'Dairy & eggs')." },
+            },
+            required: ["description", "amount"],
+          },
+        },
+        vat_summary: {
+          type: "array",
+          description: "The VAT breakdown table if one is printed (one row per VAT rate): the net amount and the VAT amount for that rate, exactly as printed.",
+          items: {
+            type: "object",
+            properties: {
+              rate: { type: "number", enum: VAT_RATE_ENUM },
+              net: { type: "number", description: "Amount excluding VAT for this rate, as printed." },
+              vat: { type: "number", description: "VAT amount for this rate, as printed." },
+            },
+            required: ["rate"],
+          },
+        },
+        net_total: { type: "number", description: "Total excluding VAT, as printed. Omit if not printed." },
+        vat_total: { type: "number", description: "Total VAT, as printed. Omit if not printed." },
+        gross_total: {
+          type: "number",
+          description:
+            "The final total paid including VAT, as printed. If it is hidden or smudged (e.g. blacked out), work it out as the ex-VAT total plus VAT, or the cash/card tendered minus any change, and only if you can see those numbers.",
+        },
+        category: { type: "string", enum: [...EXPENSE_CATEGORIES], description: "The single best category for the receipt overall." },
         notes: { type: "string", description: "A short one-line description of what was purchased, if useful." },
       },
-      required: ["payee", "gross_amount"],
+      required: ["payee", "lines"],
     },
   },
   bill: {
@@ -149,7 +212,8 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
 
 function systemPromptFor(kind: ScanKind): string {
   const base = "You read UK retail and hospitality documents precisely. Only report figures you can actually see — never estimate or invent a value that isn't legible, and simply omit a field you can't read rather than guessing.";
-  if (kind === "receipt") return `${base} You are reading a single receipt for a business expense (fuel, supplies, a bill payment slip, etc.) — not a customer sales receipt.`;
+  if (kind === "receipt")
+    return `${base} You are reading a single shop receipt for a business purchase. Transcribe every item line (do not stop early on a long receipt), with its printed amount, quantity and VAT rate. Work out whether the printed line prices include VAT or exclude it (trade receipts often list prices before VAT, with 'TOTAL (EXCL VAT)', a VAT table and 'TOTAL (INCL VAT)' at the bottom — check that the line amounts add up to the ex-VAT total to be sure). Read the VAT table exactly as printed. A receipt that prints no VAT at all (many retail receipts) simply has no VAT information — leave those fields out rather than inventing them. Ignore barcodes, survey codes, loyalty messages and addresses when listing items.`;
   if (kind === "bill") return `${base} You are reading a supplier invoice or delivery note addressed to the business, listing what was bought and at what cost.`;
   if (kind === "till") return `${base} You are reading a cash till: either a register's own total display/receipt, or a photo of physical notes and coins someone has counted out.`;
   return `${base} You are reading either physical stock (count what's actually there, item by item) or a written/printed list of items and quantities — list every distinct item you can identify, each with its own quantity.`;
@@ -166,7 +230,7 @@ export async function extractFromImage(kind: ScanKind, base64: string, mediaType
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: systemPromptFor(kind),
       tools: [tool],
       tool_choice: { type: "tool", name: tool.name },
@@ -218,14 +282,53 @@ function vatRate(v: unknown): number {
 
 function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtraction {
   if (kind === "receipt") {
-    const gross = num(input.gross_amount);
+    const category = (c: unknown) => ((EXPENSE_CATEGORIES as readonly string[]).includes(String(c)) ? String(c) : null);
+    const money = (v: unknown) => {
+      const n = num(v);
+      return n === null ? null : roundMoney(n);
+    };
+    const rawLines = Array.isArray(input.lines) ? input.lines : [];
+    const lines: ReceiptLine[] = rawLines
+      .map((l) => {
+        if (typeof l !== "object" || l === null) return null;
+        const rec = l as Record<string, unknown>;
+        const description = str(rec.description);
+        const amount = money(rec.amount);
+        if (!description || amount === null) return null;
+        const qty = num(rec.qty);
+        return {
+          description,
+          qty: qty && qty > 0 ? roundQty(qty) : 1,
+          amount,
+          vatRate: rec.vat_rate !== undefined && VAT_RATE_ENUM.includes(Number(rec.vat_rate)) ? Number(rec.vat_rate) : null,
+          category: category(rec.category),
+          itemGroup: (STOCK_GROUPS as readonly string[]).includes(String(rec.item_group)) ? String(rec.item_group) : null,
+          isStock: rec.is_stock === true,
+        };
+      })
+      .filter((l): l is ReceiptLine => l !== null)
+      .slice(0, 120);
+    const vatSummary = (Array.isArray(input.vat_summary) ? input.vat_summary : [])
+      .map((r) => {
+        if (typeof r !== "object" || r === null) return null;
+        const rec = r as Record<string, unknown>;
+        if (!VAT_RATE_ENUM.includes(Number(rec.rate))) return null;
+        return { rate: Number(rec.rate), net: money(rec.net), vat: money(rec.vat) };
+      })
+      .filter((r): r is { rate: number; net: number | null; vat: number | null } => r !== null);
+    const method = String(input.payment_method);
     return {
       kind,
       payee: str(input.payee),
       date: isoDate(input.date),
-      gross: gross !== null ? roundMoney(Math.abs(gross)) : null,
-      vatRate: input.vat_rate !== undefined ? vatRate(input.vat_rate) : null,
-      category: (EXPENSE_CATEGORIES as readonly string[]).includes(String(input.category)) ? String(input.category) : null,
+      paymentMethod: method === "cash" || method === "card" ? method : null,
+      pricesIncludeVat: typeof input.prices_include_vat === "boolean" ? input.prices_include_vat : null,
+      lines,
+      vatSummary,
+      netTotal: money(input.net_total),
+      vatTotal: money(input.vat_total),
+      grossTotal: money(input.gross_total),
+      category: category(input.category),
       notes: str(input.notes),
     };
   }

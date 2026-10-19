@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import type { ItemOption } from "@/lib/supabase/items";
 
-export type NewItemInput = { name: string; unit: string; vatRate?: number; salePrice?: number };
+export type NewItemInput = { name: string; unit: string; vatRate?: number; salePrice?: number; category?: string };
 export type NamedRecord = { id: string; name: string };
 
 export type ScannedEntriesResult = {
@@ -87,6 +87,7 @@ export async function createScannedEntries(input: {
           org_id: org.orgId,
           name,
           unit: clean(w.unit, 20) || "unit",
+          category: w.category ? clean(w.category, 60) : null,
           sale_price: Math.max(0, Number(w.salePrice) || 0),
           vat_rate: [0, 5, 20].includes(Number(w.vatRate)) ? Number(w.vatRate) : 20,
           stock_qty: 0,

@@ -30,6 +30,34 @@ export function matchVendor<T extends CatalogItem>(name: string, vendors: T[]): 
   return hits.length === 1 ? hits[0] : null;
 }
 
+/** For receipts, where a wrong match would put stock on the wrong item: an exact name, or a
+ * catalogue item whose every word appears in the receipt line ("Tomatoes" in "Vine Tomatoes 1kg").
+ * "Rotisserie Chicken" is NOT a "Chicken Breast". Ties go to the longest (most specific) name,
+ * and a tie on that too means no match. */
+export function matchCatalogItemStrict<T extends CatalogItem>(description: string, catalog: T[]): T | null {
+  const target = normalise(description);
+  if (!target) return null;
+  const exact = catalog.find((i) => normalise(i.name) === target);
+  if (exact) return exact;
+  const targetTokens = new Set(tokens(description));
+  if (!targetTokens.size) return null;
+  let best: T | null = null;
+  let bestLen = 0;
+  let tied = false;
+  for (const item of catalog) {
+    const itemTokens = tokens(item.name);
+    if (!itemTokens.length || !itemTokens.every((t) => targetTokens.has(t))) continue;
+    if (itemTokens.length > bestLen) {
+      best = item;
+      bestLen = itemTokens.length;
+      tied = false;
+    } else if (itemTokens.length === bestLen) {
+      tied = true;
+    }
+  }
+  return best && !tied ? best : null;
+}
+
 export function matchCatalogItem<T extends CatalogItem>(description: string, catalog: T[]): T | null {
   const target = normalise(description);
   if (!target) return null;

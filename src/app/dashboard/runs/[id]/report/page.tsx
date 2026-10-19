@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { getItemsWithDefaultCost } from "@/lib/supabase/items";
+import { getExpenses } from "@/lib/bookkeeping/data";
+import { roundQty } from "@/lib/format";
 import { RunReportExport, type RunReportLine, type VendorStopData } from "./run-report-export";
 import type { CustomerStopData } from "../stock-sheet/stock-sheet-builder";
 
@@ -27,7 +29,7 @@ export default async function RunReportPage({
     supabase.from("runs").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("purchases")
-      .select("id, vendors(name), purchase_line_items(description, qty, unit_cost)")
+      .select("id, vendors(name), purchase_line_items(item_id, description, qty, unit_cost)")
       .eq("run_id", id),
     supabase
       .from("invoices")
@@ -52,6 +54,19 @@ export default async function RunReportPage({
 
   if (!run) notFound();
 
+  // Everything else bought or spent on the run's day also belongs in its report — shop receipts,
+  // one-off purchases, expenses — not just what was ordered through this run's own stops.
+  const [{ data: dayPurchases }, dayExpenses] = await Promise.all([
+    supabase
+      .from("purchases")
+      .select("id, vendors(name), purchase_line_items(item_id, description, qty, unit_cost)")
+      .eq("org_id", org.orgId)
+      .eq("purchase_date", run.run_date)
+      .is("run_id", null),
+    getExpenses(org.orgId, run.run_date, run.run_date),
+  ]);
+  const allPurchases = [...(purchases ?? []), ...(dayPurchases ?? [])];
+
   const customerStops: CustomerStopData[] = (customerStopRows ?? [])
     .map((stop) => {
       const customerName = (stop.customers as unknown as { name: string } | null)?.name ?? "—";
@@ -75,9 +90,10 @@ export default async function RunReportPage({
 
   const lines: RunReportLine[] = [];
 
-  for (const p of purchases ?? []) {
+  const stockInMap = new Map<string, { name: string; qty: number }>();
+  for (const p of allPurchases) {
     const vendorName = (p.vendors as unknown as { name: string } | null)?.name ?? "—";
-    for (const li of (p.purchase_line_items ?? []) as { description: string; qty: number; unit_cost: number }[]) {
+    for (const li of (p.purchase_line_items ?? []) as { item_id: string | null; description: string; qty: number; unit_cost: number }[]) {
       lines.push({
         type: "purchase",
         entity: vendorName,
@@ -85,7 +101,23 @@ export default async function RunReportPage({
         qty: li.qty,
         amount: li.qty * li.unit_cost,
       });
+      if (li.item_id) {
+        const cur = stockInMap.get(li.item_id) ?? { name: li.description, qty: 0 };
+        cur.qty = roundQty(cur.qty + li.qty);
+        stockInMap.set(li.item_id, cur);
+      }
     }
+  }
+  const stockIn = [...stockInMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const e of dayExpenses) {
+    lines.push({
+      type: "expense",
+      entity: e.payee,
+      description: `${e.category}${e.description ? ` — ${e.description}` : ""}`,
+      qty: 1,
+      amount: e.net_amount,
+    });
   }
 
   for (const inv of invoices ?? []) {
@@ -115,6 +147,7 @@ export default async function RunReportPage({
     });
 
   const totalCost = lines.filter((l) => l.type === "purchase").reduce((s, l) => s + l.amount, 0);
+  const totalExpenses = lines.filter((l) => l.type === "expense").reduce((s, l) => s + l.amount, 0);
   const totalRevenue = lines.filter((l) => l.type === "invoice").reduce((s, l) => s + l.amount, 0);
   const totalCash = cashLines.reduce((s, l) => s + l.amount, 0);
 
@@ -132,6 +165,8 @@ export default async function RunReportPage({
         totalCost={totalCost}
         totalRevenue={totalRevenue}
         totalCash={totalCash}
+        totalExpenses={totalExpenses}
+        stockIn={stockIn}
       />
     </div>
   );

@@ -316,6 +316,7 @@ export type Database = {
           org_id: string
           payee: string
           payment_method: string
+          receipt_id: string | null
           receipt_url: string | null
           total_amount: number | null
           vat_amount: number
@@ -331,6 +332,7 @@ export type Database = {
           org_id: string
           payee: string
           payment_method?: string
+          receipt_id?: string | null
           receipt_url?: string | null
           total_amount?: number | null
           vat_amount?: number
@@ -346,6 +348,7 @@ export type Database = {
           org_id?: string
           payee?: string
           payment_method?: string
+          receipt_id?: string | null
           receipt_url?: string | null
           total_amount?: number | null
           vat_amount?: number
@@ -356,6 +359,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "scanned_receipts"
             referencedColumns: ["id"]
           },
         ]
@@ -1058,7 +1068,10 @@ export type Database = {
           notes: string | null
           org_id: string
           paid_on: string | null
+          paid_with: string | null
           purchase_date: string
+          receipt_id: string | null
+          receipt_url: string | null
           run_id: string | null
           status: string
           supplier_ref: string | null
@@ -1071,7 +1084,10 @@ export type Database = {
           notes?: string | null
           org_id: string
           paid_on?: string | null
+          paid_with?: string | null
           purchase_date?: string
+          receipt_id?: string | null
+          receipt_url?: string | null
           run_id?: string | null
           status?: string
           supplier_ref?: string | null
@@ -1084,7 +1100,10 @@ export type Database = {
           notes?: string | null
           org_id?: string
           paid_on?: string | null
+          paid_with?: string | null
           purchase_date?: string
+          receipt_id?: string | null
+          receipt_url?: string | null
           run_id?: string | null
           status?: string
           supplier_ref?: string | null
@@ -1096,6 +1115,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "scanned_receipts"
             referencedColumns: ["id"]
           },
           {
@@ -1431,6 +1457,143 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scanned_receipt_lines: {
+        Row: {
+          category: string | null
+          description: string
+          id: string
+          is_stock: boolean
+          item_group: string | null
+          item_id: string | null
+          net_amount: number
+          qty: number
+          receipt_id: string
+          sort_order: number
+          vat_amount: number
+          vat_rate: number
+        }
+        Insert: {
+          category?: string | null
+          description: string
+          id?: string
+          is_stock?: boolean
+          item_group?: string | null
+          item_id?: string | null
+          net_amount: number
+          qty?: number
+          receipt_id: string
+          sort_order?: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Update: {
+          category?: string | null
+          description?: string
+          id?: string
+          is_stock?: boolean
+          item_group?: string | null
+          item_id?: string | null
+          net_amount?: number
+          qty?: number
+          receipt_id?: string
+          sort_order?: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scanned_receipt_lines_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scanned_receipt_lines_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "scanned_receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scanned_receipts: {
+        Row: {
+          created_at: string
+          gross_total: number | null
+          id: string
+          merchant: string
+          net_total: number
+          org_id: string
+          payment_method: string
+          purchase_id: string | null
+          receipt_date: string
+          receipt_url: string | null
+          run_id: string | null
+          supplier_id: string | null
+          vat_total: number
+        }
+        Insert: {
+          created_at?: string
+          gross_total?: number | null
+          id?: string
+          merchant: string
+          net_total?: number
+          org_id: string
+          payment_method: string
+          purchase_id?: string | null
+          receipt_date: string
+          receipt_url?: string | null
+          run_id?: string | null
+          supplier_id?: string | null
+          vat_total?: number
+        }
+        Update: {
+          created_at?: string
+          gross_total?: number | null
+          id?: string
+          merchant?: string
+          net_total?: number
+          org_id?: string
+          payment_method?: string
+          purchase_id?: string | null
+          receipt_date?: string
+          receipt_url?: string | null
+          run_id?: string | null
+          supplier_id?: string | null
+          vat_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scanned_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scanned_receipts_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scanned_receipts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scanned_receipts_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
