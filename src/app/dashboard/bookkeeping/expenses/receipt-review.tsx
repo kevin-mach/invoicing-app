@@ -28,6 +28,8 @@ export type ReceiptDraft = {
   notices: string[];
   /** The total the receipt itself printed, for comparison. */
   printedGross: number | null;
+  /** Whether the printed item prices include VAT (true), are before VAT (false), or the receipt has no VAT (null). */
+  includesVat: boolean | null;
 };
 
 const cell = "w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50";
@@ -64,6 +66,23 @@ export function ReceiptReview({
         return next;
       }),
     });
+
+  /** Re-reads every line's printed price the other way round: as before VAT, or as including VAT. */
+  const setPricesIncludeVat = (includes: boolean) => {
+    if (draft.includesVat === includes) return;
+    onChange({
+      ...draft,
+      includesVat: includes,
+      lines: draft.lines.map((l) => {
+        const printed = draft.includesVat === true ? roundMoney(l.net + l.vat) : l.net;
+        if (includes) {
+          const netValue = roundMoney(printed / (1 + l.vatRate / 100));
+          return { ...l, net: netValue, vat: roundMoney(printed - netValue) };
+        }
+        return { ...l, net: printed, vat: roundMoney((printed * l.vatRate) / 100) };
+      }),
+    });
+  };
 
   const net = roundMoney(draft.lines.reduce((s, l) => s + l.net, 0));
   const vat = roundMoney(draft.lines.reduce((s, l) => s + l.vat, 0));
@@ -103,6 +122,32 @@ export function ReceiptReview({
       </div>
 
       {supplierNote ? <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-400">{supplierNote}</p> : null}
+
+      {draft.includesVat !== null ? (
+        <div>
+          <p className={labelClass}>The prices printed on the receipt are…</p>
+          <div className="mt-1 inline-flex w-full overflow-hidden rounded-lg border border-slate-300 sm:w-auto dark:border-slate-700" role="group" aria-label="Do the printed prices include VAT?">
+            {([false, true] as const).map((v) => (
+              <button
+                key={String(v)}
+                type="button"
+                aria-pressed={draft.includesVat === v}
+                onClick={() => setPricesIncludeVat(v)}
+                className={`min-h-11 flex-1 px-4 py-2 text-sm font-medium sm:flex-none ${
+                  draft.includesVat === v
+                    ? "bg-slate-900 text-white dark:bg-slate-50 dark:text-slate-900"
+                    : "bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {v ? "Including VAT" : "Before VAT"}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            The app works this out from the receipt&apos;s own totals. Only change it if you can see it&apos;s wrong — the box under the table shows whether the total still matches the receipt.
+          </p>
+        </div>
+      ) : null}
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
         <table className="lines w-full min-w-[1040px] text-left text-sm">

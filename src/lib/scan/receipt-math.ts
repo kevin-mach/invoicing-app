@@ -18,6 +18,8 @@ export type ReconciledReceipt = {
   net: number;
   vat: number;
   gross: number;
+  /** Whether the printed line prices include VAT (true), are before VAT (false), or the receipt shows no VAT (null). */
+  includesVat: boolean | null;
   /** Problems the person must look at before trusting the figures — these stop auto-save. */
   warnings: string[];
   /** Worth knowing, but nothing is wrong. */
@@ -111,5 +113,13 @@ export function reconcileReceipt(ex: ReceiptExtraction): ReconciledReceipt {
   }
   if (!lines.length) warnings.push("No item lines could be read from this photo.");
 
-  return { lines, net, vat, gross, warnings, notices };
+  if (includes === false && vat !== 0) {
+    notices.push(
+      `Prices on this receipt are before VAT: the printed item prices add up to £${net.toFixed(2)}, the same as the receipt's own "before VAT" total, and the VAT is added at the bottom. That is why each line's "Total paid" is a little higher than the price printed next to it.`
+    );
+  } else if (includes === true && vat !== 0) {
+    notices.push("Prices on this receipt already include VAT, so the VAT shown is the part of each price that is tax.");
+  }
+
+  return { lines, net, vat, gross, includesVat: includes, warnings, notices };
 }
