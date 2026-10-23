@@ -8,8 +8,9 @@ import { propertyStatementAddsUp, type PropertyDetails } from "@/lib/property";
 const field = "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50";
 const label = "block text-sm font-medium text-slate-700 dark:text-slate-300";
 
-const TEXT_FIELDS: { key: "property" | "ourRef" | "location" | "vatRegNo"; label: string; wide?: boolean }[] = [
+const TEXT_FIELDS: { key: "property" | "invoiceNo" | "ourRef" | "location" | "vatRegNo"; label: string; wide?: boolean }[] = [
   { key: "property", label: "Managed property at", wide: true },
+  { key: "invoiceNo", label: "Invoice no." },
   { key: "ourRef", label: "Our ref" },
   { key: "location", label: "Location" },
   { key: "vatRegNo", label: "VAT reg. no." },
@@ -111,6 +112,7 @@ const fmtDate = (d: string | null) => (d ? d.split("-").reverse().join("/") : nu
 export function PropertyDetailsView({ details: d, title = "Property details" }: { details: PropertyDetails; title?: string }) {
   const rows: [string, string | null][] = [
     ["Managed property at", d.property],
+    ["Invoice no.", d.invoiceNo],
     ["Our ref", d.ourRef],
     ["Location", d.location],
     ["VAT reg. no.", d.vatRegNo],

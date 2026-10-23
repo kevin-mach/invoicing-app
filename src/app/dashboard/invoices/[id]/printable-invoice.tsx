@@ -1,5 +1,5 @@
 import { formatGBP } from "@/lib/format";
-import { PropertyDetailsView } from "@/components/property-details";
+import { RentStyleInvoice } from "@/components/rent-style-invoice";
 import type { PropertyDetails } from "@/lib/property";
 
 type LineItem = {
@@ -9,6 +9,7 @@ type LineItem = {
   unit_price: number;
   vat_rate?: number;
   line_total: number | null;
+  vat_amount?: number | null;
 };
 
 export function PrintableInvoice({
@@ -43,6 +44,24 @@ export function PrintableInvoice({
   /** A property company's invoice: the managed property, rent and tenancy dates. */
   property?: PropertyDetails | null;
 }) {
+  if (property) {
+    return (
+      <RentStyleInvoice
+        orgName={orgName}
+        invoiceNumber={invoiceNumber}
+        status={status}
+        issueDate={issueDate}
+        dueDate={dueDate}
+        customerName={customerName}
+        customerAddress={customerAddress}
+        lineItems={lineItems}
+        subtotal={subtotal}
+        vatTotal={vatTotal}
+        notes={notes}
+        property={property}
+      />
+    );
+  }
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 print:border-0 print:p-0 dark:border-slate-800 dark:bg-slate-900 print:dark:bg-white">
       <div className="flex items-start justify-between">
@@ -66,12 +85,6 @@ export function PrintableInvoice({
           {dueDate ? <p className="text-slate-600 dark:text-slate-400 print:text-black">Due date: {dueDate}</p> : null}
         </div>
       </div>
-
-      {property ? (
-        <div className="mt-6">
-          <PropertyDetailsView details={property} />
-        </div>
-      ) : null}
 
       <table className="mt-6 w-full text-left text-sm">
         <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400 print:text-black">

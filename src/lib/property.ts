@@ -4,6 +4,8 @@
 export type PropertyDetails = {
   /** "Re: Managed Property at" — the address being managed. */
   property: string | null;
+  /** The invoice number printed on the document. */
+  invoiceNo: string | null;
   ourRef: string | null;
   location: string | null;
   vatRegNo: string | null;
@@ -23,13 +25,14 @@ export type PropertyDetails = {
   paidToAccount: string | null;
 };
 
-export const PROPERTY_TEXT_KEYS = ["property", "ourRef", "location", "vatRegNo", "description", "paidToSortCode", "paidToAccount"] as const;
+export const PROPERTY_TEXT_KEYS = ["property", "invoiceNo", "ourRef", "location", "vatRegNo", "description", "paidToSortCode", "paidToAccount"] as const;
 export const PROPERTY_DATE_KEYS = ["currentRentDate", "rentReviewDate", "discussWithAgentDate"] as const;
 export const PROPERTY_MONEY_KEYS = ["rentReceived", "invoiceAmount", "vatIncluded", "expensesPaid", "balanceDue"] as const;
 
 export function emptyPropertyDetails(): PropertyDetails {
   return {
     property: null,
+    invoiceNo: null,
     ourRef: null,
     location: null,
     vatRegNo: null,

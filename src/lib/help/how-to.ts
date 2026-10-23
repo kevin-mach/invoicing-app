@@ -115,7 +115,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "New invoice",
     what: "Make a bill for a customer.",
     when: ["When you have delivered something and want to be paid."],
-    steps: ["Pick the customer (or tap \"New customer\" to add one on the spot).", "Property company? A Property details box appears: the managed property, rent received, balance due and the rent dates. Fill in what applies.", "Add the items they bought. You can type them, tap a suggestion, or tap \"Scan a photo\" of the order or delivery note.", "Check the quantities and prices.", "Tap Save. You can then print it, send it or share the PDF."],
+    steps: ["Pick the customer (or tap \"New customer\" to add one on the spot).", "Property company? Tap \"Scan an invoice\" to read a whole rent-style invoice (the customer, dates, fee, VAT, managed property, rent received and balance due), or fill in the Property details box yourself. The invoice then prints in the rent layout.", "Add the items they bought. You can type them, tap a suggestion, or tap \"Scan a photo\" of the order or delivery note.", "Check the quantities and prices.", "Tap Save. You can then print it, send it or share the PDF."],
     tip: SCAN_TIP,
   },
   "/dashboard/invoices/daily": {

@@ -38,6 +38,12 @@ function propertyFromForm(formData: FormData): Json | null {
   }
 }
 
+/** The invoice date when the form gave a valid one; otherwise nothing, so today's date applies (new) or the old date stays (edit). */
+function issueDateFromForm(formData: FormData): { issue_date?: string } {
+  const v = String(formData.get("issue_date") ?? "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? { issue_date: v } : {};
+}
+
 export async function createInvoice(
   _prevState: InvoiceFormState,
   formData: FormData
@@ -62,6 +68,7 @@ export async function createInvoice(
       tax: Number(formData.get("tax") ?? 0) || 0,
       vat_on_top: formData.get("vat_on_top") === "on",
       property_details: propertyFromForm(formData),
+      ...issueDateFromForm(formData),
     })
     .select("id")
     .single();
@@ -109,6 +116,7 @@ export async function updateInvoiceLineItems(
       tax: Number(formData.get("tax") ?? 0) || 0,
       vat_on_top: formData.get("vat_on_top") === "on",
       property_details: propertyFromForm(formData),
+      ...issueDateFromForm(formData),
     })
     .eq("id", invoiceId);
 

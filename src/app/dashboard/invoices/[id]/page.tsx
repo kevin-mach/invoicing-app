@@ -91,6 +91,7 @@ export default async function InvoiceDetailPage({
           submitLabel="Save changes"
           propertyMode={org.businessType === "property"}
           initialProperty={property}
+          initialIssueDate={invoice.issue_date}
         />
       </div>
     </div>

@@ -7,8 +7,9 @@ import type { ItemOption } from "@/lib/supabase/items";
 import { formatGBP, roundQty } from "@/lib/format";
 import { DateInput } from "@/components/date-input";
 import { ScanButton } from "@/components/bookkeeping/scan-button";
-import type { ScanExtraction } from "@/lib/scan/extract";
-import { matchCatalogItem } from "@/lib/scan/match-items";
+import type { BillExtraction, ScanExtraction } from "@/lib/scan/extract";
+import { reconcileBill } from "@/lib/scan/bill-math";
+import { matchCatalogItem, matchVendor } from "@/lib/scan/match-items";
 import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeeping/use-new-entries";
 import { AddNameInline } from "@/components/add-name-inline";
 import { PropertyFields } from "@/components/property-details";
@@ -43,6 +44,7 @@ export function InvoiceForm({
   submitLabel = "Save invoice",
   propertyMode = false,
   initialProperty = null,
+  initialIssueDate,
   autoSaveScans,
 }: {
   action: (state: InvoiceFormState, formData: FormData) => Promise<InvoiceFormState>;
@@ -61,10 +63,13 @@ export function InvoiceForm({
   /** A property investment company: adds the property section (managed property, rent, dates) to the invoice. */
   propertyMode?: boolean;
   initialProperty?: PropertyDetails | null;
+  initialIssueDate?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null } as InvoiceFormState);
   const [customerId, setCustomerId] = useState(initialCustomerId ?? "");
   const [extraCustomers, setExtraCustomers] = useState<Customer[]>([]);
+  const [dueDate, setDueDate] = useState(initialDueDate ?? "");
+  const [issueDate, setIssueDate] = useState(initialIssueDate ?? "");
   const [property, setProperty] = useState<PropertyDetails>(initialProperty ?? emptyPropertyDetails());
   const allCustomers = [...customers, ...extraCustomers.filter((e) => !customers.some((c) => c.id === e.id))];
   const [rows, setRows] = useState<Row[]>(
@@ -90,7 +95,57 @@ export function InvoiceForm({
   const items = useMemo(() => [...baseItems, ...extraItems.filter((e) => !baseItems.some((i) => i.id === e.id))], [baseItems, extraItems]);
   const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
+  // A whole invoice document (property accounts): the customer, dates, fee line, VAT and the property
+  // statement are read in one go. Costs are taken before VAT so VAT is never counted twice.
+  const handleInvoiceScanned = async (data: BillExtraction) => {
+    setScanNote(null);
+    const rec = reconcileBill(data);
+
+    let customer = data.vendorName ? matchVendor(data.vendorName, allCustomers) : null;
+    if (data.vendorName && !customer) {
+      const created = await ask([{ key: `c:${data.vendorName}`, kind: "Customer", label: data.vendorName, customer: data.vendorName }]);
+      if (created?.customers[0]) {
+        customer = created.customers[0];
+        setExtraCustomers((p) => [...p, created.customers[0]]);
+      }
+    }
+    if (customer) setCustomerId(customer.id);
+    if (data.date) setIssueDate(data.date);
+    if (data.dueDate) setDueDate(data.dueDate);
+    if (data.property || data.billNumber) setProperty({ ...(data.property ?? emptyPropertyDetails()), invoiceNo: data.property?.invoiceNo ?? data.billNumber });
+    setVatOnTop(rec.vat > 0);
+
+    const added: Row[] = rec.lines.map((l) => ({
+      key: crypto.randomUUID(),
+      item_id: null,
+      description: l.description,
+      qty: l.qty,
+      unit_cost: 0,
+      unit_price: l.unitCost,
+      vat_rate: l.vatRate,
+    }));
+    const nextRows = added.length ? added : rowsRef.current;
+    if (added.length) setRows(added);
+
+    const problems = [...rec.warnings, ...(customer ? [] : ["choose the customer"]), ...(added.length ? [] : ["no lines could be read"])];
+    setScanNote([...rec.notices, problems.length ? `Check before saving: ${problems.join("; ")}.` : "Read from the photo — check it and save."].join(" "));
+    if (!autoSaveScans || problems.length || !formRef.current) return;
+
+    const fd = new FormData(formRef.current);
+    fd.set("customer_id", customer!.id);
+    fd.set("line_items", JSON.stringify(nextRows.map(({ key: _key, ...rest }) => rest)));
+    fd.set("vat_on_top", rec.vat > 0 ? "on" : "");
+    fd.set("issue_date", data.date ?? "");
+    fd.set("due_date", data.dueDate ?? "");
+    fd.set("property_details", JSON.stringify({ ...(data.property ?? emptyPropertyDetails()), invoiceNo: data.property?.invoiceNo ?? data.billNumber }));
+    setAutoSaving(true);
+    const result = await action({ error: null }, fd);
+    setAutoSaving(false);
+    if (result.error) setScanNote(`Couldn't auto-save — ${result.error} Check the invoice and save manually.`);
+  };
+
   const handleScanned = async (data: ScanExtraction) => {
+    if (data.kind === "bill") return handleInvoiceScanned(data);
     if (data.kind !== "list") return;
     setScanNote(null);
     let catalogList = items;
@@ -216,7 +271,10 @@ export function InvoiceForm({
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Choose the customer, then scan a photo of their order, a delivery note or the goods to fill in the lines.
           </p>
-          <ScanButton kind="list" label="Scan a photo" onExtracted={handleScanned} />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {propertyMode ? <ScanButton kind="bill" label="Scan an invoice" onExtracted={handleScanned} /> : null}
+            <ScanButton kind="list" label="Scan a photo" onExtracted={handleScanned} />
+          </div>
         </div>
       ) : null}
       {prompt}
@@ -256,10 +314,23 @@ export function InvoiceForm({
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Due date</label>
           <DateInput
             name="due_date"
-            defaultValue={initialDueDate ?? ""}
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
           />
         </div>
+        {propertyMode ? (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Invoice date</label>
+            <DateInput
+              name="issue_date"
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Leave empty to use today.</p>
+          </div>
+        ) : null}
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Notes</label>
           <textarea
