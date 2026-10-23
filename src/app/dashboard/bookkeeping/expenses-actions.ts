@@ -72,6 +72,9 @@ const round4 = (n: number) => Math.round(n * 10000) / 10000;
  *   them correctly even when a receipt mixes 20% and 0% items;
  * - a discount line goes with the stock purchase when there is one.
  * Expenses are written first and removed again if the purchase then fails. */
+/** A printed cash/change figure: a positive amount to the penny, or nothing. */
+const money = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1_000_000 ? roundMoney(v) : null);
+
 export async function saveReceipt(input: {
   merchant: string;
   date: string;
@@ -79,6 +82,9 @@ export async function saveReceipt(input: {
   supplierId: string | null;
   receiptPath: string | null;
   lines: ReceiptLineInput[];
+  /** What was handed over and the change given back, as printed on the receipt. */
+  tendered?: number | null;
+  changeGiven?: number | null;
 }): Promise<SaveReceiptResult> {
   const c = await bookkeepingCtx();
   if (!c) return NOT_ALLOWED;
@@ -145,6 +151,8 @@ export async function saveReceipt(input: {
       net_total: roundMoney(lines.reduce((s, l) => s + l.net, 0)),
       vat_total: roundMoney(lines.reduce((s, l) => s + l.vat, 0)),
       receipt_url: receipt,
+      tendered: money(input.tendered),
+      change_given: money(input.changeGiven),
       supplier_id: supplierId,
       run_id: runId,
     })

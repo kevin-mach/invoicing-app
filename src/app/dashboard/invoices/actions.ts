@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
+import { cleanPropertyDetails } from "@/lib/property";
+import type { Json } from "@/lib/supabase/types";
 
 export type InvoiceFormState = { error: string | null };
 
@@ -22,6 +24,17 @@ function parseLineItems(raw: string): LineItemInput[] {
     return parsed.filter((li) => li.description.trim().length > 0);
   } catch {
     return [];
+  }
+}
+
+/** The property section of a property company's invoice, from the form's hidden JSON field (null when empty). */
+function propertyFromForm(formData: FormData): Json | null {
+  const raw = String(formData.get("property_details") ?? "");
+  if (!raw) return null;
+  try {
+    return cleanPropertyDetails(JSON.parse(raw)) as unknown as Json | null;
+  } catch {
+    return null;
   }
 }
 
@@ -48,6 +61,7 @@ export async function createInvoice(
       notes: String(formData.get("notes") ?? "") || null,
       tax: Number(formData.get("tax") ?? 0) || 0,
       vat_on_top: formData.get("vat_on_top") === "on",
+      property_details: propertyFromForm(formData),
     })
     .select("id")
     .single();
@@ -94,6 +108,7 @@ export async function updateInvoiceLineItems(
       notes: String(formData.get("notes") ?? "") || null,
       tax: Number(formData.get("tax") ?? 0) || 0,
       vat_on_top: formData.get("vat_on_top") === "on",
+      property_details: propertyFromForm(formData),
     })
     .eq("id", invoiceId);
 

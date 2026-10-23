@@ -1,6 +1,7 @@
 import { EXPENSE_CATEGORIES, STOCK_GROUPS } from "@/lib/bookkeeping/categories";
 import { DENOMINATIONS } from "@/lib/cashup";
 import { roundMoney, roundQty } from "@/lib/format";
+import { cleanPropertyDetails, type PropertyDetails } from "@/lib/property";
 
 /** Reads structured data out of a photo — a receipt, a supplier bill, or a till/cash-register
  * total — using Claude's vision. Every field the model returns is treated as a suggestion: the
@@ -64,6 +65,9 @@ export type ReceiptExtraction = {
   netTotal: number | null;
   vatTotal: number | null;
   grossTotal: number | null;
+  /** What was handed over (cash given, or the card amount) and the change given back, where printed. */
+  amountTendered: number | null;
+  changeGiven: number | null;
   category: string | null;
   notes: string | null;
 };
@@ -75,7 +79,14 @@ export type BillExtraction = {
   billNumber: string | null;
   date: string | null;
   dueDate: string | null;
+  /** Lines as printed. `unitCost` is before VAT unless `pricesIncludeVat` is true — see bill-math. */
   lines: BillLine[];
+  pricesIncludeVat: boolean | null;
+  netTotal: number | null;
+  vatTotal: number | null;
+  grossTotal: number | null;
+  /** Letting-agent / property facts (managed property, rent received, balance due, tenancy dates), if the document has them. */
+  property: PropertyDetails | null;
 };
 
 export type TillExtraction = {
@@ -158,6 +169,8 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
           description:
             "The final total paid including VAT, as printed. If it is hidden or smudged (e.g. blacked out), work it out as the ex-VAT total plus VAT, or the cash/card tendered minus any change, and only if you can see those numbers.",
         },
+        amount_tendered: { type: "number", description: "The amount handed over or tendered (e.g. the 'Cash' line, £420.00), as printed — which can be MORE than the total when change is given. Omit if not printed." },
+        change_given: { type: "number", description: "The change given back to the customer ('Change', 'Change Cash'), as a positive number. Omit if there was none." },
         category: { type: "string", enum: [...EXPENSE_CATEGORIES], description: "The single best category for the receipt overall." },
         notes: { type: "string", description: "A short one-line description of what was purchased, if useful." },
       },
@@ -216,6 +229,36 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
         bill_number: { type: "string", description: "The supplier's own invoice/bill number." },
         date: { type: "string", description: "Invoice date, as YYYY-MM-DD." },
         due_date: { type: "string", description: "Payment due date, as YYYY-MM-DD, if shown." },
+        prices_include_vat: {
+          type: "boolean",
+          description:
+            "true if the printed line prices already include VAT (shop receipts, or wording like 'inc VAT' / 'VAT included in the price above'). false if the line prices are before VAT and VAT is added on top. Omit if the document shows no VAT information.",
+        },
+        net_total: { type: "number", description: "Total before VAT, as printed. Omit if not printed." },
+        vat_total: { type: "number", description: "Total VAT, as printed. Omit if not printed." },
+        gross_total: { type: "number", description: "Final total payable including VAT, as printed. Omit if not printed." },
+        property_statement: {
+          type: "object",
+          description:
+            "ONLY for a letting / property-management agent's invoice or statement: the property facts printed on it. Leave the whole object out for any other document. Copy every one of these that is printed.",
+          properties: {
+            managed_property: { type: "string", description: "The address after 'Re: Managed Property at'." },
+            our_ref: { type: "string", description: "'Our Ref' (the agent's reference for the property)." },
+            location: { type: "string", description: "'Location' code." },
+            vat_reg_no: { type: "string", description: "The agent's VAT registration number." },
+            description: { type: "string", description: "What the invoice is for, e.g. 'To agreed management fees for the above property inc VAT'." },
+            current_rent_date: { type: "string", description: "'Current rent date', YYYY-MM-DD (day-first in the original)." },
+            rent_review_date: { type: "string", description: "'Rent review date', YYYY-MM-DD." },
+            discuss_with_agent_date: { type: "string", description: "'Discuss with agent date', YYYY-MM-DD." },
+            rent_received: { type: "number", description: "'Rent received' in the Statement of Account." },
+            invoice_amount: { type: "number", description: "'Less our invoice as above' — the invoice amount (the fee including VAT)." },
+            vat_included: { type: "number", description: "The VAT included in the fee ('included in our fee above is the VAT @ 20%')." },
+            expenses_paid: { type: "number", description: "'Less expenses paid on your behalf'." },
+            balance_due: { type: "number", description: "'Balance due to you'." },
+            paid_to_sort_code: { type: "string", description: "Sort code the balance was paid to." },
+            paid_to_account: { type: "string", description: "Account number the balance was paid to." },
+          },
+        },
         lines: {
           type: "array",
           description: "Each distinct product or service line on the bill.",
@@ -224,8 +267,8 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
             properties: {
               description: { type: "string" },
               qty: { type: "number", description: "Quantity. Default to 1 if not shown separately from the price." },
-              unit_cost: { type: "number", description: "Cost per unit, excluding VAT." },
-              vat_rate: { type: "number", enum: VAT_RATE_ENUM, description: "This line's UK VAT rate — 0, 5 or 20." },
+              unit_cost: { type: "number", description: "Cost per unit EXACTLY AS PRINTED — do not add or remove VAT yourself; prices_include_vat says which it is. Negative for a discount or credit." },
+              vat_rate: { type: "number", enum: VAT_RATE_ENUM, description: "This line's UK VAT rate — 0, 5 or 20. A short code printed on the line (A, 0, 1…) is NOT the rate: look it up in the VAT table or key. If the document says VAT @ 20% overall, use 20." },
             },
             required: ["description", "unit_cost"],
           },
@@ -286,8 +329,8 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
 function systemPromptFor(kind: ScanKind): string {
   const base = "You read UK retail and hospitality documents precisely. Only report figures you can actually see — never estimate or invent a value that isn't legible, and simply omit a field you can't read rather than guessing.";
   if (kind === "receipt")
-    return `${base} You are reading a single shop receipt for a business purchase. Transcribe every item line (do not stop early on a long receipt), with its printed amount, quantity and VAT rate. Work out whether the printed line prices include VAT or exclude it (trade receipts often list prices before VAT, with 'TOTAL (EXCL VAT)', a VAT table and 'TOTAL (INCL VAT)' at the bottom — check that the line amounts add up to the ex-VAT total to be sure). Read the VAT table exactly as printed. A receipt that prints no VAT at all (many retail receipts) simply has no VAT information — leave those fields out rather than inventing them. Ignore barcodes, survey codes, loyalty messages and addresses when listing items.`;
-  if (kind === "bill") return `${base} You are reading a supplier invoice or delivery note addressed to the business, listing what was bought and at what cost. A discount, credit or "less" line is a line too: give it a NEGATIVE unit cost.`;
+    return `${base} You are reading a single shop receipt for a business purchase. Transcribe every item line (do not stop early on a long receipt), with its printed amount, quantity and VAT rate. Work out whether the printed line prices include VAT or exclude it (trade receipts often list prices before VAT, with 'TOTAL (EXCL VAT)', a VAT table and 'TOTAL (INCL VAT)' at the bottom — check that the line amounts add up to the ex-VAT total to be sure). Read the VAT table exactly as printed. A receipt that prints no VAT at all (many retail receipts) simply has no VAT information — leave those fields out rather than inventing them. Ignore barcodes, survey codes, loyalty messages and addresses when listing items. A short code printed beside each price (A, 0, 1, T…) is a VAT code, not a rate: find what rate it means in the VAT table or legend (on IKEA receipts code 0 is the 20% row) and use that rate. If no trading name is printed but a web address is (www.amazon.co.uk), the payee is the brand ("Amazon"). Record the cash handed over and the change given back when printed (amount_tendered, change_given); the total paid is the receipt's Total, not the cash handed over. Dates on UK receipts are day-first: 05.08.26 is 5 August 2026, never 8 May.`;
+  if (kind === "bill") return `${base} You are reading a supplier invoice or delivery note addressed to the business, listing what was bought and at what cost. A discount, credit or "less" line is a line too: give it a NEGATIVE unit cost. Copy each price exactly as printed and say whether the prices include VAT (prices_include_vat): shop receipts and lines worded "inc VAT" include it; Net / VAT / Total columns usually mean the prices are before VAT. Read the printed totals too. UK dates are day-first (05.08.26 is 5 August 2026). The supplier name is the business's trading name; if only a web address is printed (e.g. www.amazon.co.uk) use the brand ("Amazon"). For a letting or property-management agent's invoice, the charge itself is the fee line; put the rent received, expenses paid, balance due, property address and the tenancy dates in property_statement instead of making them invoice lines.`;
   if (kind === "statement")
     return `${base} You are reading one page of a UK bank statement. Transcribe every transaction row with its description, the date as printed, the Paid In / Withdrawn amount and the running balance. Read the Paid In and Withdrawn columns by their position carefully: money in goes in Paid In, money out in Withdrawn. Also read the summary box (previous balance, paid in, withdrawn, new balance, period covered) exactly as printed. Skip the marketing text and any header or footer text.`;
   if (kind === "till") return `${base} You are reading a cash till: either a register's own total display/receipt, or a photo of physical notes and coins someone has counted out.`;
@@ -350,6 +393,37 @@ function num(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
+
+/** A name that is really just a web address ("www.amazon.co.uk") becomes the brand ("Amazon"). */
+export function brandName(name: string | null): string | null {
+  if (!name) return name;
+  const m = name.trim().match(/^(?:https?:\/\/)?(?:www\.)?([a-z0-9][a-z0-9-]*)\.(?:co\.uk|com|uk|org|net|io|shop|store)(?:\/\S*)?$/i);
+  if (!m) return name;
+  const label = m[1].replace(/-/g, " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function propertyFromScan(v: unknown): PropertyDetails | null {
+  if (typeof v !== "object" || v === null) return null;
+  const r = v as Record<string, unknown>;
+  return cleanPropertyDetails({
+    property: r.managed_property,
+    ourRef: r.our_ref,
+    location: r.location,
+    vatRegNo: r.vat_reg_no,
+    description: r.description,
+    currentRentDate: r.current_rent_date,
+    rentReviewDate: r.rent_review_date,
+    discussWithAgentDate: r.discuss_with_agent_date,
+    rentReceived: r.rent_received,
+    invoiceAmount: r.invoice_amount,
+    vatIncluded: r.vat_included,
+    expensesPaid: r.expenses_paid,
+    balanceDue: r.balance_due,
+    paidToSortCode: r.paid_to_sort_code,
+    paidToAccount: r.paid_to_account,
+  });
+}
 function vatRate(v: unknown): number {
   const n = Number(v);
   return VAT_RATE_ENUM.includes(n) ? n : 0;
@@ -394,7 +468,7 @@ function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtracti
     const method = String(input.payment_method);
     return {
       kind,
-      payee: str(input.payee),
+      payee: brandName(str(input.payee)),
       date: isoDate(input.date),
       paymentMethod: method === "cash" || method === "card" || method === "bank" ? method : null,
       pricesIncludeVat: typeof input.prices_include_vat === "boolean" ? input.prices_include_vat : null,
@@ -403,6 +477,8 @@ function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtracti
       netTotal: money(input.net_total),
       vatTotal: money(input.vat_total),
       grossTotal: money(input.gross_total),
+      amountTendered: money(input.amount_tendered),
+      changeGiven: money(input.change_given),
       category: category(input.category),
       notes: str(input.notes),
     };
@@ -421,7 +497,23 @@ function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtracti
       })
       .filter((l): l is BillLine => l !== null)
       .slice(0, 40);
-    return { kind, vendorName: str(input.vendor_name), billNumber: str(input.bill_number), date: isoDate(input.date), dueDate: isoDate(input.due_date), lines };
+    const total = (v: unknown) => {
+      const n = num(v);
+      return n === null ? null : roundMoney(n);
+    };
+    return {
+      kind,
+      vendorName: brandName(str(input.vendor_name)),
+      billNumber: str(input.bill_number),
+      date: isoDate(input.date),
+      dueDate: isoDate(input.due_date),
+      lines,
+      pricesIncludeVat: typeof input.prices_include_vat === "boolean" ? input.prices_include_vat : null,
+      netTotal: total(input.net_total),
+      vatTotal: total(input.vat_total),
+      grossTotal: total(input.gross_total),
+      property: propertyFromScan(input.property_statement),
+    };
   }
   if (kind === "statement") {
     const money = (v: unknown) => {

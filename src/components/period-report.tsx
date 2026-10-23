@@ -47,7 +47,7 @@ export async function PeriodReport({
     supabase.from("items").select("id, stock_qty").eq("org_id", orgId).eq("is_active", true),
     supabase
       .from("scanned_receipts")
-      .select("id, merchant, receipt_date, payment_method, net_total, vat_total, gross_total, purchase_id, scanned_receipt_lines(id, sort_order, description, qty, net_amount, vat_rate, vat_amount, category, item_group, is_stock)")
+      .select("id, merchant, receipt_date, payment_method, net_total, vat_total, gross_total, tendered, change_given, purchase_id, scanned_receipt_lines(id, sort_order, description, qty, net_amount, vat_rate, vat_amount, category, item_group, is_stock)")
       .eq("org_id", orgId)
       .gte("receipt_date", from)
       .lte("receipt_date", to)
@@ -273,6 +273,8 @@ export async function PeriodReport({
               net_total: r.net_total,
               vat_total: r.vat_total,
               gross_total: r.gross_total,
+              tendered: r.tendered,
+              change_given: r.change_given,
               purchase_id: r.purchase_id,
               receiptLink: null,
               lines: [...(r.scanned_receipt_lines ?? [])].sort((a, b) => a.sort_order - b.sort_order),

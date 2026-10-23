@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PurchaseActions } from "./purchase-actions";
 import { formatGBP } from "@/lib/format";
+import { PropertyDetailsView } from "@/components/property-details";
+import { cleanPropertyDetails } from "@/lib/property";
 
 export default async function PurchaseDetailPage({
   params,
@@ -20,6 +22,7 @@ export default async function PurchaseDetailPage({
   if (!purchase) notFound();
 
   const vendor = purchase.vendors as unknown as { name: string; address: string | null } | null;
+  const property = cleanPropertyDetails(purchase.property_details);
   const net = (lineItems ?? []).reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
   const vatTotal = (lineItems ?? []).reduce((sum, li) => sum + (li.vat_amount ?? 0), 0);
   const total = net + vatTotal;
@@ -67,6 +70,12 @@ export default async function PurchaseDetailPage({
           {vatTotal > 0 ? `Net ${formatGBP(net)} + VAT ${formatGBP(vatTotal)} = ` : ""}Total: {formatGBP(total)}
         </div>
       </div>
+
+      {property ? (
+        <div className="mt-4">
+          <PropertyDetailsView details={property} title="Agent's property statement" />
+        </div>
+      ) : null}
 
       {purchase.notes ? (
         <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">{purchase.notes}</p>

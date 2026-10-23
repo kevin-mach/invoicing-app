@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
+import { cleanPropertyDetails } from "@/lib/property";
+import type { Json } from "@/lib/supabase/types";
 
 export type PurchaseFormState = { error: string | null };
 
@@ -41,6 +43,14 @@ export async function createPurchase(
   const supplierRef = String(formData.get("supplier_ref") ?? "").trim();
   const dueDate = String(formData.get("due_date") ?? "");
 
+  let propertyDetails: Json | null = null;
+  try {
+    const raw = String(formData.get("property_details") ?? "");
+    if (raw && org.businessType === "property") propertyDetails = cleanPropertyDetails(JSON.parse(raw)) as unknown as Json | null;
+  } catch {
+    propertyDetails = null;
+  }
+
   const supabase = await createClient();
   const { data: purchase, error } = await supabase
     .from("purchases")
@@ -50,6 +60,7 @@ export async function createPurchase(
       notes: String(formData.get("notes") ?? "") || null,
       supplier_ref: supplierRef || null,
       due_date: /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : null,
+      property_details: propertyDetails,
     })
     .select("id")
     .single();

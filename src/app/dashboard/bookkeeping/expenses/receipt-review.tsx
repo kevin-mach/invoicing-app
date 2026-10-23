@@ -32,6 +32,9 @@ export type ReceiptDraft = {
   includesVat: boolean | null;
   /** The total VAT the receipt printed, so line figures can be kept adding up to it exactly. */
   printedVat: number | null;
+  /** Cash (or card amount) handed over and the change given back, as printed. */
+  tendered: number | null;
+  changeGiven: number | null;
 };
 
 const cell = "w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50";
@@ -299,6 +302,18 @@ export function ReceiptReview({
             <span>Total paid</span>
             <span>{formatGBP(gross)}</span>
           </div>
+          {draft.tendered !== null ? (
+            <div className="space-y-1 border-t border-slate-200 pt-1 dark:border-slate-800">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>{draft.method === "cash" ? "Cash handed over" : "Amount handed over"}</span>
+                <span>{formatGBP(draft.tendered)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Change given back</span>
+                <span>{formatGBP(draft.changeGiven ?? 0)}</span>
+              </div>
+            </div>
+          ) : null}
           {draft.printedGross !== null ? (
             <p className={`pt-1 text-xs ${mismatch ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
               {mismatch ? `Receipt says ${formatGBP(draft.printedGross)} — doesn't match.` : `Matches the receipt (${formatGBP(draft.printedGross)}).`}

@@ -47,3 +47,20 @@ export async function updateAutoSaveScans(input: { autoSaveScans: boolean }): Pr
   revalidatePath("/dashboard", "layout");
   return OK;
 }
+
+/* ----------------------------- Type of business ---------------------------- */
+
+/** A property investment company's invoices carry the managed property, rent and tenancy details;
+ * every other business keeps the standard invoice. */
+export async function updateBusinessType(input: { businessType: "standard" | "property" }): Promise<ActionResult> {
+  const org = await getCurrentOrg();
+  if (!org || (org.role !== "owner" && org.role !== "admin")) {
+    return { error: "Only the owner or an admin can change this." };
+  }
+  if (input.businessType !== "standard" && input.businessType !== "property") return { error: "Unknown business type." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("organizations").update({ business_type: input.businessType }).eq("id", org.orgId);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard", "layout");
+  return OK;
+}

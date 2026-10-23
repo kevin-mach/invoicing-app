@@ -10,6 +10,9 @@ import { ScanButton } from "@/components/bookkeeping/scan-button";
 import type { ScanExtraction } from "@/lib/scan/extract";
 import { matchCatalogItem } from "@/lib/scan/match-items";
 import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeeping/use-new-entries";
+import { AddNameInline } from "@/components/add-name-inline";
+import { PropertyFields } from "@/components/property-details";
+import { emptyPropertyDetails, type PropertyDetails } from "@/lib/property";
 
 type Customer = { id: string; name: string };
 
@@ -38,6 +41,8 @@ export function InvoiceForm({
   initialVatOnTop = false,
   initialLineItems,
   submitLabel = "Save invoice",
+  propertyMode = false,
+  initialProperty = null,
   autoSaveScans,
 }: {
   action: (state: InvoiceFormState, formData: FormData) => Promise<InvoiceFormState>;
@@ -53,9 +58,15 @@ export function InvoiceForm({
   initialVatOnTop?: boolean;
   initialLineItems?: LineItemInput[];
   submitLabel?: string;
+  /** A property investment company: adds the property section (managed property, rent, dates) to the invoice. */
+  propertyMode?: boolean;
+  initialProperty?: PropertyDetails | null;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null } as InvoiceFormState);
   const [customerId, setCustomerId] = useState(initialCustomerId ?? "");
+  const [extraCustomers, setExtraCustomers] = useState<Customer[]>([]);
+  const [property, setProperty] = useState<PropertyDetails>(initialProperty ?? emptyPropertyDetails());
+  const allCustomers = [...customers, ...extraCustomers.filter((e) => !customers.some((c) => c.id === e.id))];
   const [rows, setRows] = useState<Row[]>(
     initialLineItems?.length
       ? initialLineItems.map((li) => ({ ...li, key: crypto.randomUUID() }))
@@ -209,12 +220,13 @@ export function InvoiceForm({
         </div>
       ) : null}
       {prompt}
+      <input type="hidden" name="property_details" value={propertyMode ? JSON.stringify(property) : ""} />
       {scanNote ? <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-950 dark:text-slate-400">{scanNote}</p> : null}
       {autoSaving ? <p className="text-sm text-slate-500 dark:text-slate-400">Saving automatically from the photo...</p> : null}
 
       <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6 sm:grid-cols-2 dark:border-slate-800 dark:bg-slate-900">
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Customer</label>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{propertyMode ? "Tenant / customer" : "Customer"}</label>
           <select
             name="customer_id"
             required
@@ -226,12 +238,19 @@ export function InvoiceForm({
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
           >
             <option value="">Select a customer...</option>
-            {customers.map((c) => (
+            {allCustomers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </select>
+          <AddNameInline
+            kind="customer"
+            onAdded={(c) => {
+              setExtraCustomers((p) => [...p, c]);
+              setCustomerId(c.id);
+            }}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Due date</label>
@@ -251,6 +270,8 @@ export function InvoiceForm({
           />
         </div>
       </div>
+
+      {propertyMode ? <PropertyFields value={property} onChange={setProperty} title="Property details (managed property, rent and dates)" /> : null}
 
       {customerId && suggestions.length ? (
         <div>

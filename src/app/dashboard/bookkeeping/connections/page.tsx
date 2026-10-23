@@ -3,7 +3,7 @@ import { requireBookkeeper } from "@/lib/bookkeeping/access";
 import { encryptionConfigured } from "@/lib/integrations/crypto";
 import { isConfigured, PROVIDERS, providerConfig, type Provider } from "@/lib/integrations/config";
 import { scanConfigured } from "@/lib/scan/extract";
-import { AccountingPanel, AutoSaveScanToggle, BankAccounts, HmrcPanel, ProviderActions } from "./connections-client";
+import { AccountingPanel, AutoSaveScanToggle, BusinessTypeSetting, BankAccounts, HmrcPanel, ProviderActions } from "./connections-client";
 
 const SYNCABLE: Provider[] = ["truelayer", "square"];
 
@@ -111,6 +111,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
         ) : (
           <AutoSaveScanToggle autoSaveScans={org.autoSaveScans} canEdit={org.role === "owner" || org.role === "admin"} />
         )}
+        <BusinessTypeSetting businessType={org.businessType} canEdit={org.role === "owner" || org.role === "admin"} />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

@@ -22,6 +22,8 @@ export type ReceiptRow = {
   net_total: number;
   vat_total: number;
   gross_total: number | null;
+  tendered: number | null;
+  change_given: number | null;
   purchase_id: string | null;
   receiptLink: string | null;
   lines: ReceiptLineRow[];
@@ -112,6 +114,18 @@ export function ReceiptTable({ receipt: r, readOnly = false }: { receipt: Receip
             <span>Total paid</span>
             <span>{formatGBP(gross)}</span>
           </div>
+          {r.tendered !== null ? (
+            <div className="space-y-1 border-t border-slate-200 pt-1 dark:border-slate-800">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>{r.payment_method === "cash" ? "Cash handed over" : "Amount handed over"}</span>
+                <span>{formatGBP(r.tendered)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Change given back</span>
+                <span>{formatGBP(r.change_given ?? 0)}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

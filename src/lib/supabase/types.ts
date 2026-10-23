@@ -617,6 +617,7 @@ export type Database = {
           notes: string | null
           number: string | null
           org_id: string
+          property_details: Json | null
           run_id: string | null
           signature_url: string | null
           status: string
@@ -635,6 +636,7 @@ export type Database = {
           notes?: string | null
           number?: string | null
           org_id: string
+          property_details?: Json | null
           run_id?: string | null
           signature_url?: string | null
           status?: string
@@ -653,6 +655,7 @@ export type Database = {
           notes?: string | null
           number?: string | null
           org_id?: string
+          property_details?: Json | null
           run_id?: string | null
           signature_url?: string | null
           status?: string
@@ -782,6 +785,7 @@ export type Database = {
         Row: {
           add_vat_to_total: boolean
           auto_save_scans: boolean
+          business_type: string
           cancel_at_period_end: boolean
           created_at: string
           current_period_end: string | null
@@ -800,6 +804,7 @@ export type Database = {
         Insert: {
           add_vat_to_total?: boolean
           auto_save_scans?: boolean
+          business_type?: string
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
@@ -818,6 +823,7 @@ export type Database = {
         Update: {
           add_vat_to_total?: boolean
           auto_save_scans?: boolean
+          business_type?: string
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
@@ -1069,6 +1075,7 @@ export type Database = {
           org_id: string
           paid_on: string | null
           paid_with: string | null
+          property_details: Json | null
           purchase_date: string
           receipt_id: string | null
           receipt_url: string | null
@@ -1085,6 +1092,7 @@ export type Database = {
           org_id: string
           paid_on?: string | null
           paid_with?: string | null
+          property_details?: Json | null
           purchase_date?: string
           receipt_id?: string | null
           receipt_url?: string | null
@@ -1101,6 +1109,7 @@ export type Database = {
           org_id?: string
           paid_on?: string | null
           paid_with?: string | null
+          property_details?: Json | null
           purchase_date?: string
           receipt_id?: string | null
           receipt_url?: string | null
@@ -1523,6 +1532,7 @@ export type Database = {
       }
       scanned_receipts: {
         Row: {
+          change_given: number | null
           created_at: string
           gross_total: number | null
           id: string
@@ -1535,9 +1545,11 @@ export type Database = {
           receipt_url: string | null
           run_id: string | null
           supplier_id: string | null
+          tendered: number | null
           vat_total: number
         }
         Insert: {
+          change_given?: number | null
           created_at?: string
           gross_total?: number | null
           id?: string
@@ -1550,9 +1562,11 @@ export type Database = {
           receipt_url?: string | null
           run_id?: string | null
           supplier_id?: string | null
+          tendered?: number | null
           vat_total?: number
         }
         Update: {
+          change_given?: number | null
           created_at?: string
           gross_total?: number | null
           id?: string
@@ -1565,6 +1579,7 @@ export type Database = {
           receipt_url?: string | null
           run_id?: string | null
           supplier_id?: string | null
+          tendered?: number | null
           vat_total?: number
         }
         Relationships: [

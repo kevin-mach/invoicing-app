@@ -162,7 +162,7 @@ export function ExpenseForm({
       setDraftError(up.error);
       return;
     }
-    const result = await saveReceipt({ merchant: d.merchant, date: d.date, paymentMethod: d.method, supplierId: supplier?.id ?? null, receiptPath: up.path, lines });
+    const result = await saveReceipt({ merchant: d.merchant, date: d.date, paymentMethod: d.method, supplierId: supplier?.id ?? null, receiptPath: up.path, lines, tendered: d.tendered, changeGiven: d.changeGiven });
     if (result.error) {
       setDraftSaving(false);
       setDraftError(result.error);
@@ -204,6 +204,8 @@ export function ExpenseForm({
         printedGross: data.grossTotal,
         includesVat: rec.includesVat,
         printedVat: data.vatTotal,
+        tendered: data.amountTendered,
+        changeGiven: data.changeGiven,
         warnings,
         notices,
         lines: rec.lines.map((l) => ({

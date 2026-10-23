@@ -7,6 +7,7 @@ import { updateInvoiceLineItems } from "../actions";
 import { InvoiceActions } from "./invoice-actions";
 import { PrintableInvoice } from "./printable-invoice";
 import { PdfShareActions } from "@/components/pdf-share-actions";
+import { cleanPropertyDetails } from "@/lib/property";
 
 export default async function InvoiceDetailPage({
   params,
@@ -29,6 +30,7 @@ export default async function InvoiceDetailPage({
 
   const customer = invoice.customers as unknown as { name: string; address: string | null } | null;
   const updateWithId = updateInvoiceLineItems.bind(null, invoice.id);
+  const property = cleanPropertyDetails(invoice.property_details);
   const vatTotal = (lineItems ?? []).reduce((sum, li) => sum + (li.vat_amount ?? 0), 0);
 
   return (
@@ -63,6 +65,7 @@ export default async function InvoiceDetailPage({
           vatTotal={vatTotal}
           total={invoice.total}
           notes={invoice.notes}
+          property={property}
         />
       </div>
 
@@ -86,6 +89,8 @@ export default async function InvoiceDetailPage({
             vat_rate: li.vat_rate,
           }))}
           submitLabel="Save changes"
+          propertyMode={org.businessType === "property"}
+          initialProperty={property}
         />
       </div>
     </div>

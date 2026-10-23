@@ -18,7 +18,7 @@ import {
   submitReturn,
   syncNow,
 } from "./actions";
-import { updateAutoSaveScans } from "../actions";
+import { updateAutoSaveScans, updateBusinessType } from "../actions";
 
 // Connections uses a compact single-line input (unlike the taller block-level form fields
 // elsewhere), so it keeps its own size but pulls the colours from the shared kit.
@@ -477,6 +477,49 @@ export function AutoSaveScanToggle({ autoSaveScans, canEdit }: { autoSaveScans: 
       {canEdit ? (
         <div className="mt-3 flex items-center gap-3">
           <button type="button" disabled={busy} onClick={save} className={btnPrimary}>
+            {busy ? "Saving..." : "Save"}
+          </button>
+          <Note note={note} />
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Only the owner or an admin can change this.</p>
+      )}
+    </div>
+  );
+}
+
+export function BusinessTypeSetting({ businessType, canEdit }: { businessType: "standard" | "property"; canEdit: boolean }) {
+  const [value, setValue] = useState(businessType);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<FormStatus>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setNote(null);
+    const result = await updateBusinessType({ businessType: value });
+    setBusy(false);
+    setNote(result.error ? { ok: false, text: result.error } : { ok: true, text: "Saved." });
+  };
+
+  return (
+    <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
+      <p className="text-sm font-medium text-slate-900 dark:text-slate-50">Type of business</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Choose <em>Property investment</em> and invoices and purchases get a property section: the managed property, rent received, balance due and the
+        rent dates. Every other business keeps the standard invoice.
+      </p>
+      <select
+        value={value}
+        disabled={!canEdit}
+        onChange={(e) => setValue(e.target.value as "standard" | "property")}
+        className="mt-2 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+      >
+        <option value="standard">Standard business (food, retail, services)</option>
+        <option value="property">Property investment company</option>
+      </select>
+      {canEdit ? (
+        <div className="mt-3 flex items-center gap-3">
+          <button type="button" disabled={busy || value === businessType} onClick={save} className={btnPrimary}>
             {busy ? "Saving..." : "Save"}
           </button>
           <Note note={note} />

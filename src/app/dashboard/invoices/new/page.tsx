@@ -24,6 +24,7 @@ export default async function NewInvoicePage() {
         initialVatOnTop={org.addVatToTotal}
         submitLabel="Create invoice"
         autoSaveScans={org.autoSaveScans}
+        propertyMode={org.businessType === "property"}
       />
     </div>
   );

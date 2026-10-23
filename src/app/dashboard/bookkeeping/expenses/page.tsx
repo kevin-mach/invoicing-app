@@ -39,7 +39,7 @@ export default async function ExpensesPage({
     supabase
       .from("scanned_receipts")
       .select(
-        "id, merchant, receipt_date, payment_method, net_total, vat_total, gross_total, receipt_url, purchase_id, scanned_receipt_lines(id, sort_order, description, qty, net_amount, vat_rate, vat_amount, category, item_group, is_stock)"
+        "id, merchant, receipt_date, payment_method, net_total, vat_total, gross_total, tendered, change_given, receipt_url, purchase_id, scanned_receipt_lines(id, sort_order, description, qty, net_amount, vat_rate, vat_amount, category, item_group, is_stock)"
       )
       .eq("org_id", org.orgId)
       .gte("receipt_date", from)
@@ -80,6 +80,8 @@ export default async function ExpensesPage({
     net_total: r.net_total,
     vat_total: r.vat_total,
     gross_total: r.gross_total,
+    tendered: r.tendered,
+    change_given: r.change_given,
     purchase_id: r.purchase_id,
     receiptLink: r.receipt_url ? (linkByPath.get(r.receipt_url) ?? null) : null,
     lines: [...(r.scanned_receipt_lines ?? [])].sort((a, b) => a.sort_order - b.sort_order),

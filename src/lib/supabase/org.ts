@@ -34,6 +34,8 @@ export type CurrentOrg = {
   /** When on, an AI photo scan saves itself once the photo gives everything a save needs —
    * otherwise every scan just fills in the form and waits for a person. Off by default. */
   autoSaveScans: boolean;
+  /** "property" for a property investment company (invoices carry the managed property, rent and tenancy details); "standard" otherwise. */
+  businessType: "standard" | "property";
 };
 
 /** Returns the signed-in user's first organization, or null if they have none yet.
@@ -50,7 +52,7 @@ export const getCurrentOrg = cache(async (): Promise<CurrentOrg | null> => {
   const { data: membership } = await supabase
     .from("org_members")
     .select(
-      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_tier, subscription_exempt, stripe_customer_id, stripe_subscription_id, cancel_at_period_end, current_period_end, add_vat_to_total, vat_number, auto_save_scans)"
+      "org_id, role, organizations(name, trial_ends_at, subscription_status, subscription_plan, subscription_tier, subscription_exempt, stripe_customer_id, stripe_subscription_id, cancel_at_period_end, current_period_end, add_vat_to_total, vat_number, auto_save_scans, business_type)"
     )
     .eq("user_id", user.id)
     .limit(1)
@@ -72,6 +74,7 @@ export const getCurrentOrg = cache(async (): Promise<CurrentOrg | null> => {
     add_vat_to_total: boolean;
     vat_number: string | null;
     auto_save_scans: boolean;
+    business_type: string;
   } | null;
 
   if (!org) return null;
@@ -100,5 +103,6 @@ export const getCurrentOrg = cache(async (): Promise<CurrentOrg | null> => {
     addVatToTotal: org.add_vat_to_total,
     vatNumber: org.vat_number,
     autoSaveScans: org.auto_save_scans,
+    businessType: org.business_type === "property" ? "property" : "standard",
   };
 });

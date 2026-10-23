@@ -60,8 +60,12 @@ export function reconcileReceipt(ex: ReceiptExtraction): ReconciledReceipt {
   const notices: string[] = [];
   const includes = inferIncludesVat(ex);
 
+  // One VAT row on the receipt means every line is at that rate; a line code like IKEA's "0" is
+  // not a rate, and must not be read as 0% when the receipt's own table says 20%.
+  const onlyRate = ex.vatSummary.length === 1 && ex.vatSummary[0].rate > 0 ? ex.vatSummary[0].rate : null;
+
   const lines: ReconciledLine[] = ex.lines.map((l) => {
-    const rate = l.vatRate ?? 0;
+    const rate = onlyRate ?? l.vatRate ?? 0;
     let net: number;
     let vat: number;
     let gross: number;
@@ -93,7 +97,7 @@ export function reconcileReceipt(ex: ReceiptExtraction): ReconciledReceipt {
 
   if (includes === null) {
     notices.push("This receipt doesn't print any VAT, so VAT is recorded as £0.00. If you know the VAT (for example 20% on clothing), set it on the lines.");
-  } else if (ex.lines.some((x) => x.vatRate === null)) {
+  } else if (onlyRate === null && ex.lines.some((x) => x.vatRate === null)) {
     warnings.push("Some lines had no VAT code that could be read, so they're set to 0% VAT — check them.");
   }
 

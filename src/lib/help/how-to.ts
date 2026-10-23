@@ -115,7 +115,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "New invoice",
     what: "Make a bill for a customer.",
     when: ["When you have delivered something and want to be paid."],
-    steps: ["Pick the customer.", "Add the items they bought. You can type them, tap a suggestion, or tap \"Scan a photo\" of the order or delivery note.", "Check the quantities and prices.", "Tap Save. You can then print it, send it or share the PDF."],
+    steps: ["Pick the customer (or tap \"New customer\" to add one on the spot).", "Property company? A Property details box appears: the managed property, rent received, balance due and the rent dates. Fill in what applies.", "Add the items they bought. You can type them, tap a suggestion, or tap \"Scan a photo\" of the order or delivery note.", "Check the quantities and prices.", "Tap Save. You can then print it, send it or share the PDF."],
     tip: SCAN_TIP,
   },
   "/dashboard/invoices/daily": {
@@ -164,7 +164,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "New purchase",
     what: "Write down something you bought from a supplier. The items you buy are added to your stock.",
     when: ["When a supplier gives you a bill or a delivery note."],
-    steps: ["Pick the supplier.", "Tap \"Scan with AI\" and take a photo (or choose a PDF) of the bill. Or type the items yourself.", "Check the supplier, the bill number, the date and every item.", "Tap Save purchase."],
+    steps: ["Pick the supplier, or tap \"New supplier\" to add one on the spot.", "Tap \"Scan with AI\" and take a photo (or choose a PDF) of the bill. Or type the items yourself. If the prices already include VAT (like a shop receipt), the scan takes the VAT out so it is not counted twice.", "Property company? The agent's property statement (managed property, rent received, expenses, balance due, rent dates) is read into its own box.", "Check the supplier, the bill number, the date and every item.", "Tap Save purchase."],
     tip: SCAN_TIP,
   },
   "/dashboard/purchases/[id]": {

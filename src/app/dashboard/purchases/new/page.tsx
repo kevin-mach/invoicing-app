@@ -27,6 +27,7 @@ export default async function NewPurchasePage() {
         items={items}
         submitLabel="Save purchase"
         autoSaveScans={org.autoSaveScans}
+        propertyMode={org.businessType === "property"}
       />
     </div>
   );

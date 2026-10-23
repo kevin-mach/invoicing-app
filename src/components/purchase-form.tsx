@@ -9,6 +9,10 @@ import type { ParsedReceiptLine } from "@/lib/ocr/parse-lines";
 import { ScanButton } from "@/components/bookkeeping/scan-button";
 import type { ScanExtraction } from "@/lib/scan/extract";
 import { matchCatalogItem, matchVendor } from "@/lib/scan/match-items";
+import { reconcileBill } from "@/lib/scan/bill-math";
+import { AddNameInline } from "@/components/add-name-inline";
+import { PropertyFields } from "@/components/property-details";
+import { emptyPropertyDetails, hasPropertyDetails, type PropertyDetails } from "@/lib/property";
 import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeeping/use-new-entries";
 import { formatGBP, roundMoney, roundQty } from "@/lib/format";
 import { DateInput } from "@/components/date-input";
@@ -29,6 +33,7 @@ export function PurchaseForm({
   initialLineItems,
   submitLabel = "Save purchase",
   autoSaveScans = false,
+  propertyMode = false,
 }: {
   action: (state: PurchaseFormState, formData: FormData) => Promise<PurchaseFormState>;
   orgId: string;
@@ -39,6 +44,8 @@ export function PurchaseForm({
   initialLineItems?: PurchaseLineItemInput[];
   submitLabel?: string;
   autoSaveScans?: boolean;
+  /** A property investment company: keeps the agent's property statement (managed property, rent, balance due, dates) with the purchase. */
+  propertyMode?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null } as PurchaseFormState);
   const [vendorId, setVendorId] = useState(initialVendorId ?? "");
@@ -46,6 +53,8 @@ export function PurchaseForm({
   const [dueDate, setDueDate] = useState("");
   const [autoSaving, setAutoSaving] = useState(false);
   const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
+  const [scanNotes, setScanNotes] = useState<string[]>([]);
+  const [property, setProperty] = useState<PropertyDetails>(emptyPropertyDetails());
   const [rows, setRows] = useState<Row[]>(
     initialLineItems?.length ? initialLineItems.map((li) => ({ ...li, key: crypto.randomUUID() })) : [emptyRow()]
   );
@@ -81,9 +90,14 @@ export function PurchaseForm({
     });
   };
 
-  const handleAiScanned = async (data: ScanExtraction) => {
-    if (data.kind !== "bill") return;
+  const handleAiScanned = async (raw: ScanExtraction) => {
+    if (raw.kind !== "bill") return;
     setAutoSaveError(null);
+    // Costs are stored before VAT, so a receipt whose prices already include VAT is converted first.
+    const rec = reconcileBill(raw);
+    const data = { ...raw, lines: rec.lines };
+    setScanNotes([...rec.warnings, ...rec.notices]);
+    if (propertyMode && raw.property) setProperty(raw.property);
 
     let vendorList = allVendors;
     let catalogList = catalog;
@@ -142,7 +156,7 @@ export function PurchaseForm({
     // Auto-save needs an exact supplier, every line settled (matched or just added with the
     // person's say-so), and at least one real line item.
     const validLines = nextRows.filter((r) => r.description.trim() && r.qty > 0);
-    const ready = autoSaveScans && resolved && vendorMatch && data.lines.length && validLines.length === nextRows.length;
+    const ready = autoSaveScans && resolved && vendorMatch && data.lines.length && validLines.length === nextRows.length && !rec.warnings.length;
     if (!ready || !vendorMatch) return;
 
     setAutoSaving(true);
@@ -152,6 +166,7 @@ export function PurchaseForm({
     formData.set("due_date", data.dueDate ?? "");
     formData.set("notes", "");
     formData.set("image_url", "");
+    if (propertyMode && raw.property) formData.set("property_details", JSON.stringify(raw.property));
     formData.set("line_items", JSON.stringify(validLines.map(({ key: _key, ...rest }) => rest)));
     const result = await action({ error: null }, formData);
     setAutoSaving(false);
@@ -168,6 +183,7 @@ export function PurchaseForm({
     <form action={formAction} className="mt-6 space-y-6">
       <input type="hidden" name="line_items" value={JSON.stringify(rows.map(({ key: _key, ...rest }) => rest))} />
       <input type="hidden" name="image_url" value={imageUrl ?? ""} />
+      <input type="hidden" name="property_details" value={propertyMode && hasPropertyDetails(property) ? JSON.stringify(property) : ""} />
 
       {prompt}
 
@@ -188,6 +204,13 @@ export function PurchaseForm({
               </option>
             ))}
           </select>
+          <AddNameInline
+            kind="supplier"
+            onAdded={(v) => {
+              setExtraVendors((p) => [...p, v]);
+              setVendorId(v.id);
+            }}
+          />
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <ReceiptScanner orgId={orgId} onScanned={handleScanned} />
@@ -222,6 +245,8 @@ export function PurchaseForm({
           />
         </div>
       </div>
+
+      {propertyMode ? <PropertyFields value={property} onChange={setProperty} title="Agent's property statement (managed property, rent and dates)" /> : null}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="lines w-full min-w-[560px] text-left text-sm">
@@ -339,7 +364,14 @@ export function PurchaseForm({
       </div>
 
       {state.error ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{state.error}</p> : null}
-      {autoSaveError ? <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{autoSaveError}</p> : null}
+      {scanNotes.length ? (
+        <ul className="space-y-1 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          {scanNotes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      ) : null}
+      {autoSaveError ?<p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{autoSaveError}</p> : null}
       {autoSaving ? <p className="text-sm text-slate-500 dark:text-slate-400">Saving automatically from the photo...</p> : null}
 
       <button
