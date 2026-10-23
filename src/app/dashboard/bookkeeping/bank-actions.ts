@@ -27,14 +27,14 @@ export type ImportBankResult = {
 
 const IMPORT_ZERO = { inserted: 0, skipped: 0, autoMatched: 0, autoCategorised: 0, autoBanked: 0, autoPayroll: 0 };
 
-export async function importBankTransactions(rows: ParsedBankTxn[]): Promise<ImportBankResult> {
+export async function importBankTransactions(rows: ParsedBankTxn[], opts?: { source?: "photo" }): Promise<ImportBankResult> {
   const c = await bookkeepingCtx();
   if (!c) return { ...IMPORT_ZERO, error: NOT_ALLOWED.error };
   if (!Array.isArray(rows) || !rows.length) return { ...IMPORT_ZERO, error: "Nothing to import." };
   if (rows.length > 5000) return { ...IMPORT_ZERO, error: "Import at most 5,000 lines at a time." };
 
   const seen = new Map<string, number>();
-  const records: { org_id: string; txn_date: string; description: string; amount: number; fingerprint: string }[] = [];
+  const records: { org_id: string; txn_date: string; description: string; amount: number; fingerprint: string; note?: string; source?: string }[] = [];
 
   for (const r of rows) {
     const amount = Number(r.amount);
@@ -50,6 +50,8 @@ export async function importBankTransactions(rows: ParsedBankTxn[]): Promise<Imp
       description: clean.description,
       amount: clean.amount,
       fingerprint: bankFingerprint(clean, occurrence),
+      ...(r.note ? { note: String(r.note).trim().slice(0, 120) } : {}),
+      ...(opts?.source === "photo" ? { source: "photo" } : {}),
     });
   }
 

@@ -44,7 +44,7 @@ export function ReceiptTable({ receipt: r, readOnly = false }: { receipt: Receip
               <th className="px-2 py-2 text-right font-medium">Before VAT</th>
               <th className="px-2 py-2 text-right font-medium">VAT %</th>
               <th className="px-2 py-2 text-right font-medium">VAT</th>
-              <th className="px-2 py-2 text-right font-medium">Total paid</th>
+              <th className="px-2 py-2 text-right font-medium">Line total (with VAT)</th>
               <th className="px-2 py-2 font-medium">Kind</th>
               <th className="px-2 py-2 font-medium">Went to</th>
             </tr>
@@ -70,7 +70,7 @@ export function ReceiptTable({ receipt: r, readOnly = false }: { receipt: Receip
                 <td className="px-2 py-2 text-right text-slate-600 dark:text-slate-400" data-label="VAT">
                   {formatGBP(l.vat_amount)}
                 </td>
-                <td className="px-2 py-2 text-right font-medium text-slate-900 dark:text-slate-50" data-label="Total paid">
+                <td className="px-2 py-2 text-right font-medium text-slate-900 dark:text-slate-50" data-label="Line total (with VAT)">
                   {formatGBP(roundMoney(l.net_amount + l.vat_amount))}
                 </td>
                 <td className="px-2 py-2 text-slate-600 dark:text-slate-400" data-label="Kind">

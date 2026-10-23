@@ -6,7 +6,11 @@ import { parseSpreadsheetFile } from "@/lib/csv/parse";
 import { detectBankColumns, parseBankRows, type BankColumns } from "@/lib/bookkeeping/bank-csv";
 import { formatGBP, roundMoney } from "@/lib/format";
 import { btnPrimary, btnSecondary, rowSelectClass } from "@/components/bookkeeping/ui";
-import { importBankTransactions } from "../bank-actions";
+import { importBankTransactions, type ImportBankResult } from "../bank-actions";
+import { ScanButton } from "@/components/bookkeeping/scan-button";
+import type { ScanExtraction } from "@/lib/scan/extract";
+import { reconcileStatement } from "@/lib/scan/statement-math";
+import { StatementReview, type StatementDraft } from "./statement-review";
 
 const COLUMN_FIELDS: { key: keyof BankColumns; label: string }[] = [
   { key: "date", label: "Date" },
@@ -18,8 +22,10 @@ const COLUMN_FIELDS: { key: keyof BankColumns; label: string }[] = [
 
 const selectClass = `mt-1 w-full ${rowSelectClass}`;
 
-export function BankImport() {
+export function BankImport({ autoSaveScans = false }: { autoSaveScans?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [statement, setStatement] = useState<StatementDraft | null>(null);
+  const [statementBusy, setStatementBusy] = useState(false);
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [columns, setColumns] = useState<BankColumns>({});
@@ -59,6 +65,19 @@ export function BankImport() {
     }
   };
 
+  const describeImport = (result: ImportBankResult) => {
+    const autoBits = [
+      result.autoMatched ? `${result.autoMatched} auto-matched` : "",
+      result.autoBanked ? `${result.autoBanked} cash-up${result.autoBanked === 1 ? "" : "s"} banked` : "",
+      result.autoPayroll ? `${result.autoPayroll} payroll payment${result.autoPayroll === 1 ? "" : "s"} matched` : "",
+      result.autoCategorised ? `${result.autoCategorised} auto-categorised` : "",
+    ].filter(Boolean);
+    const auto = autoBits.length ? ` ${autoBits.join(", ")} — check them under Bank.` : "";
+    return `Imported ${result.inserted} new transaction${result.inserted === 1 ? "" : "s"}${
+      result.skipped ? `, skipped ${result.skipped} already on file` : ""
+    }.${auto}`;
+  };
+
   const handleImport = async () => {
     setBusy(true);
     setMessage(null);
@@ -68,20 +87,42 @@ export function BankImport() {
       setMessage({ kind: "error", text: result.error });
       return;
     }
-    const autoBits = [
-      result.autoMatched ? `${result.autoMatched} auto-matched` : "",
-      result.autoBanked ? `${result.autoBanked} cash-up${result.autoBanked === 1 ? "" : "s"} banked` : "",
-      result.autoPayroll ? `${result.autoPayroll} payroll payment${result.autoPayroll === 1 ? "" : "s"} matched` : "",
-      result.autoCategorised ? `${result.autoCategorised} auto-categorised` : "",
-    ].filter(Boolean);
-    const auto = autoBits.length ? ` ${autoBits.join(", ")} — check them under Bank.` : "";
-    setMessage({
-      kind: "ok",
-      text: `Imported ${result.inserted} new transaction${result.inserted === 1 ? "" : "s"}${
-        result.skipped ? `, skipped ${result.skipped} already on file` : ""
-      }.${auto}`,
-    });
+    setMessage({ kind: "ok", text: describeImport(result) });
     reset();
+  };
+
+  const importStatement = async (d: StatementDraft) => {
+    setStatementBusy(true);
+    setMessage(null);
+    const result = await importBankTransactions(
+      d.rows.map((r) => ({ txn_date: r.date, description: r.description, amount: r.amount, note: d.accountLabel || undefined })),
+      { source: "photo" }
+    );
+    setStatementBusy(false);
+    if (result.error) {
+      setMessage({ kind: "error", text: result.error });
+      return;
+    }
+    setMessage({ kind: "ok", text: `${describeImport(result)}` });
+    setStatement(null);
+  };
+
+  // A photo of a statement page: read it, check it against its own totals, and only then import.
+  const handleStatementScanned = async (data: ScanExtraction) => {
+    if (data.kind !== "statement") return;
+    setMessage(null);
+    const rec = reconcileStatement(data);
+    const draft: StatementDraft = {
+      accountLabel: rec.accountLabel,
+      periodFrom: data.periodFrom,
+      periodTo: data.periodTo,
+      openingBalance: rec.openingBalance,
+      closingBalance: rec.closingBalance,
+      checks: rec.checks,
+      rows: rec.rows.map((r) => ({ ...r, key: crypto.randomUUID() })),
+    };
+    setStatement(draft);
+    if (autoSaveScans && rec.allGood) await importStatement(draft);
   };
 
   return (
@@ -94,9 +135,23 @@ export function BankImport() {
             lines already on file are skipped.
           </p>
         </div>
-        <button type="button" onClick={() => inputRef.current?.click()} className={`flex items-center gap-1 ${btnSecondary}`}>
-          <Upload size={16} /> Choose file
-        </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <ScanButton kind="statement" label="Scan a statement photo" onExtracted={handleStatementScanned} />
+          <button type="button" onClick={() => inputRef.current?.click()} className={`flex min-h-11 items-center justify-center gap-1 ${btnSecondary}`}>
+            <Upload size={16} /> Choose file
+          </button>
+        </div>
+        {statement ? (
+          <div className="w-full">
+            <StatementReview
+              draft={statement}
+              onChange={setStatement}
+              onImport={() => void importStatement(statement)}
+              onDiscard={() => setStatement(null)}
+              busy={statementBusy}
+            />
+          </div>
+        ) : null}
         <input
           ref={inputRef}
           type="file"

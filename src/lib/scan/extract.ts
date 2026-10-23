@@ -7,7 +7,34 @@ import { roundMoney, roundQty } from "@/lib/format";
  * caller always pre-fills a normal editable form with it rather than saving anything directly, so
  * a misread number is a quick edit, not a wrong figure in the books. */
 
-export type ScanKind = "receipt" | "bill" | "till" | "list";
+export type ScanKind = "receipt" | "bill" | "till" | "list" | "statement";
+
+/** One row of a bank statement as printed. `datePrinted` is exactly what the date column shows
+ * ("03 AUG", "02 SEP 2026") or empty when the row shares the date of the row above. */
+export type StatementRowRaw = {
+  datePrinted: string | null;
+  description: string;
+  paidIn: number | null;
+  withdrawn: number | null;
+  balance: number | null;
+};
+
+export type StatementExtraction = {
+  kind: "statement";
+  accountName: string | null;
+  accountLabel: string | null;
+  accountNumber: string | null;
+  sortCode: string | null;
+  periodFrom: string | null;
+  periodTo: string | null;
+  openingBalance: number | null;
+  closingBalance: number | null;
+  totalPaidIn: number | null;
+  totalWithdrawn: number | null;
+  page: number | null;
+  totalPages: number | null;
+  rows: StatementRowRaw[];
+};
 
 /** One printed line of a receipt. `amount` is exactly what was printed for the line (negative for a
  * discount or coupon) — whether it includes VAT is told by the receipt's `pricesIncludeVat`. */
@@ -27,7 +54,7 @@ export type ReceiptExtraction = {
   kind: "receipt";
   payee: string | null;
   date: string | null;
-  paymentMethod: "cash" | "card" | null;
+  paymentMethod: "cash" | "card" | "bank" | null;
   /** True when line prices already include VAT, false when VAT is added at the bottom (trade
    * receipts such as Costco), null when the receipt doesn't say. */
   pricesIncludeVat: boolean | null;
@@ -60,7 +87,7 @@ export type TillExtraction = {
 export type ListLine = { description: string; qty: number; unit: string | null };
 export type ListExtraction = { kind: "list"; items: ListLine[] };
 
-export type ScanExtraction = ReceiptExtraction | BillExtraction | TillExtraction | ListExtraction;
+export type ScanExtraction = ReceiptExtraction | BillExtraction | TillExtraction | ListExtraction | StatementExtraction;
 
 /** The key as saved in the host's settings, tolerating the stray spaces, line breaks or quote
  * marks that often come along when it's pasted in. */
@@ -84,7 +111,11 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
       properties: {
         payee: { type: "string", description: "The shop or business's trading name (e.g. \"Costco Wholesale\", \"Primark\"), not the address or legal entity if a shorter trading name is printed." },
         date: { type: "string", description: "Date of the transaction, as YYYY-MM-DD. Omit if not legible." },
-        payment_method: { type: "string", enum: ["cash", "card"], description: "How it was paid, if the receipt shows it." },
+        payment_method: {
+          type: "string",
+          enum: ["cash", "card", "bank"],
+          description: "How it was paid — only if the document actually says or shows it (cash, a card payment, or 'bank' for a bank transfer or an invoice with bank details to pay into). Leave it out if unclear.",
+        },
         prices_include_vat: {
           type: "boolean",
           description:
@@ -131,6 +162,48 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
         notes: { type: "string", description: "A short one-line description of what was purchased, if useful." },
       },
       required: ["payee", "lines"],
+    },
+  },
+  statement: {
+    name: "record_bank_statement",
+    description: "Structured data read from a photo of a bank statement page: the account, the period, the balances and every transaction row.",
+    input_schema: {
+      type: "object",
+      properties: {
+        account_name: { type: "string", description: "The account holder name printed at the top (e.g. the company name)." },
+        account_label: { type: "string", description: "The type of account printed with it, e.g. 'BUSINESS CURRENT ACCOUNT' or 'BUSINESS RESERVE'." },
+        account_number: { type: "string", description: "The account number, digits only." },
+        sort_code: { type: "string", description: "The sort code, e.g. 60-17-36." },
+        period_from: { type: "string", description: "First day covered by the statement, YYYY-MM-DD (from 'Period Covered')." },
+        period_to: { type: "string", description: "Last day covered by the statement, YYYY-MM-DD (from 'Period Covered')." },
+        opening_balance: { type: "number", description: "The balance at the start: 'Previous Balance' in the summary box, or the BROUGHT FORWARD row." },
+        closing_balance: { type: "number", description: "The balance at the end: 'New Balance' in the summary box." },
+        total_paid_in: { type: "number", description: "The 'Paid In' total from the summary box." },
+        total_withdrawn: { type: "number", description: "The 'Withdrawn' total from the summary box." },
+        page: { type: "integer", description: "This page's number, from 'Page No 1 of 2'." },
+        total_pages: { type: "integer", description: "Total pages, from 'Page No 1 of 2'." },
+        transactions: {
+          type: "array",
+          description:
+            "EVERY transaction row in the table, in order, one entry each. Do NOT include BROUGHT FORWARD or CARRIED FORWARD rows (give those balances as opening/closing balance instead). A description that wraps onto a second line is still ONE transaction — join the lines and keep the reference numbers.",
+          items: {
+            type: "object",
+            properties: {
+              date_printed: {
+                type: "string",
+                description:
+                  "The date exactly as printed in the Date column for this row (e.g. '03 AUG' or '02 SEP 2026'). Leave it out when the Date column is blank for this row — that means it happened on the same day as the row above.",
+              },
+              description: { type: "string", description: "The full description text for this row." },
+              paid_in: { type: "number", description: "The amount in the 'Paid In' column, if there is one on this row." },
+              withdrawn: { type: "number", description: "The amount in the 'Withdrawn' column, if there is one on this row." },
+              balance: { type: "number", description: "The running balance printed on this row, if shown." },
+            },
+            required: ["description"],
+          },
+        },
+      },
+      required: ["transactions"],
     },
   },
   bill: {
@@ -214,7 +287,9 @@ function systemPromptFor(kind: ScanKind): string {
   const base = "You read UK retail and hospitality documents precisely. Only report figures you can actually see — never estimate or invent a value that isn't legible, and simply omit a field you can't read rather than guessing.";
   if (kind === "receipt")
     return `${base} You are reading a single shop receipt for a business purchase. Transcribe every item line (do not stop early on a long receipt), with its printed amount, quantity and VAT rate. Work out whether the printed line prices include VAT or exclude it (trade receipts often list prices before VAT, with 'TOTAL (EXCL VAT)', a VAT table and 'TOTAL (INCL VAT)' at the bottom — check that the line amounts add up to the ex-VAT total to be sure). Read the VAT table exactly as printed. A receipt that prints no VAT at all (many retail receipts) simply has no VAT information — leave those fields out rather than inventing them. Ignore barcodes, survey codes, loyalty messages and addresses when listing items.`;
-  if (kind === "bill") return `${base} You are reading a supplier invoice or delivery note addressed to the business, listing what was bought and at what cost.`;
+  if (kind === "bill") return `${base} You are reading a supplier invoice or delivery note addressed to the business, listing what was bought and at what cost. A discount, credit or "less" line is a line too: give it a NEGATIVE unit cost.`;
+  if (kind === "statement")
+    return `${base} You are reading one page of a UK bank statement. Transcribe every transaction row with its description, the date as printed, the Paid In / Withdrawn amount and the running balance. Read the Paid In and Withdrawn columns by their position carefully: money in goes in Paid In, money out in Withdrawn. Also read the summary box (previous balance, paid in, withdrawn, new balance, period covered) exactly as printed. Skip the marketing text and any header or footer text.`;
   if (kind === "till") return `${base} You are reading a cash till: either a register's own total display/receipt, or a photo of physical notes and coins someone has counted out.`;
   return `${base} You are reading either physical stock (count what's actually there, item by item) or a written/printed list of items and quantities — list every distinct item you can identify, each with its own quantity.`;
 }
@@ -230,7 +305,7 @@ export async function extractFromImage(kind: ScanKind, base64: string, mediaType
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      max_tokens: kind === "statement" ? 8192 : 4096,
       system: systemPromptFor(kind),
       tools: [tool],
       tool_choice: { type: "tool", name: tool.name },
@@ -321,7 +396,7 @@ function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtracti
       kind,
       payee: str(input.payee),
       date: isoDate(input.date),
-      paymentMethod: method === "cash" || method === "card" ? method : null,
+      paymentMethod: method === "cash" || method === "card" || method === "bank" ? method : null,
       pricesIncludeVat: typeof input.prices_include_vat === "boolean" ? input.prices_include_vat : null,
       lines,
       vatSummary,
@@ -340,13 +415,60 @@ function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtracti
         const rec = l as Record<string, unknown>;
         const unitCost = num(rec.unit_cost);
         const description = str(rec.description);
-        if (!description || unitCost === null || unitCost < 0) return null;
+        if (!description || unitCost === null) return null; // a negative cost is a discount or credit line — keep it
         const qty = num(rec.qty);
         return { description, qty: qty && qty > 0 ? roundQty(qty) : 1, unitCost: roundMoney(unitCost), vatRate: vatRate(rec.vat_rate) };
       })
       .filter((l): l is BillLine => l !== null)
       .slice(0, 40);
     return { kind, vendorName: str(input.vendor_name), billNumber: str(input.bill_number), date: isoDate(input.date), dueDate: isoDate(input.due_date), lines };
+  }
+  if (kind === "statement") {
+    const money = (v: unknown) => {
+      const n = num(v);
+      return n === null ? null : roundMoney(n);
+    };
+    const rawRows = Array.isArray(input.transactions) ? input.transactions : [];
+    const rows: StatementRowRaw[] = rawRows
+      .map((r) => {
+        if (typeof r !== "object" || r === null) return null;
+        const rec = r as Record<string, unknown>;
+        const description = str(rec.description);
+        if (!description) return null;
+        const clean = (v: unknown) => {
+          const n = money(v);
+          return n === null ? null : Math.abs(n);
+        };
+        return {
+          datePrinted: str(rec.date_printed),
+          description: String(rec.description).trim().replace(/\s+/g, " ").slice(0, 300),
+          paidIn: clean(rec.paid_in),
+          withdrawn: clean(rec.withdrawn),
+          balance: money(rec.balance),
+        };
+      })
+      .filter((r): r is StatementRowRaw => r !== null)
+      .slice(0, 400);
+    const int = (v: unknown) => {
+      const n = num(v);
+      return n !== null && n >= 1 && n <= 99 ? Math.round(n) : null;
+    };
+    return {
+      kind: "statement",
+      accountName: str(input.account_name),
+      accountLabel: str(input.account_label),
+      accountNumber: str(input.account_number),
+      sortCode: str(input.sort_code),
+      periodFrom: isoDate(input.period_from),
+      periodTo: isoDate(input.period_to),
+      openingBalance: money(input.opening_balance),
+      closingBalance: money(input.closing_balance),
+      totalPaidIn: money(input.total_paid_in),
+      totalWithdrawn: money(input.total_withdrawn),
+      page: int(input.page),
+      totalPages: int(input.total_pages),
+      rows,
+    };
   }
   if (kind === "till") {
     const total = num(input.total);

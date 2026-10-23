@@ -84,7 +84,7 @@ export default async function BankPage({
 
   return (
     <div className="space-y-4">
-      <BankImport />
+      <BankImport autoSaveScans={org.autoSaveScans} />
 
       <PeriodFilter basePath="/dashboard/bookkeeping/bank" from={from} to={to} extra={{ status }} />
 

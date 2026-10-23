@@ -203,6 +203,7 @@ export function ExpenseForm({
         method: data.paymentMethod ?? "card",
         printedGross: data.grossTotal,
         includesVat: rec.includesVat,
+        printedVat: data.vatTotal,
         warnings,
         notices,
         lines: rec.lines.map((l) => ({

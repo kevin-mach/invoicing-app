@@ -281,7 +281,7 @@ export function PurchaseForm({
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
+                    title="Enter a negative cost for a discount or credit"
                     value={row.unit_cost}
                     onChange={(e) => updateRow(row.key, { unit_cost: Number(e.target.value) || 0 })}
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"

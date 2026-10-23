@@ -6,7 +6,7 @@ export type BankColumns = {
   credit?: string;
 };
 
-export type ParsedBankTxn = { txn_date: string; description: string; amount: number };
+export type ParsedBankTxn = { txn_date: string; description: string; amount: number; /** Which account a scanned statement line came from. */ note?: string };
 
 const ALIASES: Record<keyof BankColumns, string[]> = {
   date: ["date", "transactiondate", "txndate", "posteddate", "postingdate", "valuedate", "bookingdate", "processeddate"],

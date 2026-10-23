@@ -308,7 +308,7 @@ export const HOW_TO: Record<string, HowTo> = {
     title: "Bank",
     what: "Your bank's money movements, shown in a list. The app helps match each one to an invoice, a bill or an expense so nothing is missed.",
     when: ["When you want to check your bank against your records."],
-    steps: ["Import your bank file (CSV), or connect your bank in Connections.", "Look at each line. The app suggests a match.", "Accept the match, or pick the right invoice, bill or expense.", "Lines with nothing left to match are marked done."],
+    steps: ["Add your bank lines: tap \"Scan a statement photo\" and take a clear photo of each page, or tap \"Choose file\" for a CSV or Excel file, or connect your bank in Connections.", "After a scan you get a table of every line. Look for the green ticks: they mean the page adds up to the statement's own opening balance, closing balance and totals. An amber warning means a line may be missing or wrong, so check it.", "Tap Import. Scanning the same page twice is safe, because lines already on file are skipped.", "Look at each line. The app suggests a match.", "Accept the match, or pick the right invoice, bill or expense.", "Lines with nothing left to match are marked done."],
   },
   "/dashboard/bookkeeping/receivables": {
     title: "Money owed to you",

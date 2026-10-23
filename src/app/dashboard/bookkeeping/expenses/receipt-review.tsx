@@ -30,6 +30,8 @@ export type ReceiptDraft = {
   printedGross: number | null;
   /** Whether the printed item prices include VAT (true), are before VAT (false), or the receipt has no VAT (null). */
   includesVat: boolean | null;
+  /** The total VAT the receipt printed, so line figures can be kept adding up to it exactly. */
+  printedVat: number | null;
 };
 
 const cell = "w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50";
@@ -70,18 +72,26 @@ export function ReceiptReview({
   /** Re-reads every line's printed price the other way round: as before VAT, or as including VAT. */
   const setPricesIncludeVat = (includes: boolean) => {
     if (draft.includesVat === includes) return;
-    onChange({
-      ...draft,
-      includesVat: includes,
-      lines: draft.lines.map((l) => {
-        const printed = draft.includesVat === true ? roundMoney(l.net + l.vat) : l.net;
-        if (includes) {
-          const netValue = roundMoney(printed / (1 + l.vatRate / 100));
-          return { ...l, net: netValue, vat: roundMoney(printed - netValue) };
-        }
-        return { ...l, net: printed, vat: roundMoney((printed * l.vatRate) / 100) };
-      }),
+    const lines = draft.lines.map((l) => {
+      const printed = draft.includesVat === true ? roundMoney(l.net + l.vat) : l.net;
+      if (includes) {
+        const netValue = roundMoney(printed / (1 + l.vatRate / 100));
+        return { ...l, net: netValue, vat: roundMoney(printed - netValue) };
+      }
+      return { ...l, net: printed, vat: roundMoney((printed * l.vatRate) / 100) };
     });
+    // Per-line rounding can leave the VAT a penny or two off what the receipt printed: put the
+    // difference on the biggest line so the lines add up to the receipt's own VAT again.
+    const withVat = lines.filter((l) => l.vatRate > 0);
+    if (draft.printedVat !== null && withVat.length) {
+      const diff = roundMoney(draft.printedVat - lines.reduce((s, l) => s + l.vat, 0));
+      if (diff !== 0 && Math.abs(diff) <= 0.05) {
+        const biggest = withVat.reduce((a, b) => (Math.abs(b.net) > Math.abs(a.net) ? b : a));
+        biggest.vat = roundMoney(biggest.vat + diff);
+        if (includes) biggest.net = roundMoney(biggest.net - diff);
+      }
+    }
+    onChange({ ...draft, includesVat: includes, lines });
   };
 
   const net = roundMoney(draft.lines.reduce((s, l) => s + l.net, 0));
@@ -149,6 +159,26 @@ export function ReceiptReview({
         </div>
       ) : null}
 
+      <div className="grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center dark:border-slate-800 dark:bg-slate-950">
+        <div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Whole receipt before VAT</p>
+          <p className="text-base font-semibold text-slate-900 sm:text-lg dark:text-slate-50">{formatGBP(net)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Total VAT</p>
+          <p className="text-base font-semibold text-slate-900 sm:text-lg dark:text-slate-50">{formatGBP(vat)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Total paid</p>
+          <p className="text-base font-semibold text-slate-900 sm:text-lg dark:text-slate-50">{formatGBP(gross)}</p>
+        </div>
+        {draft.printedGross !== null ? (
+          <p className={`col-span-3 text-xs ${mismatch ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+            {mismatch ? `The receipt says ${formatGBP(draft.printedGross)} — this doesn't match, so check the lines.` : `Matches the receipt's total of ${formatGBP(draft.printedGross)}.`}
+          </p>
+        ) : null}
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
         <table className="lines w-full min-w-[1040px] text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -159,7 +189,7 @@ export function ReceiptReview({
               <th className="w-28 px-3 py-2 text-right font-medium">Before VAT</th>
               <th className="w-20 px-3 py-2 font-medium">VAT %</th>
               <th className="w-20 px-3 py-2 text-right font-medium">VAT</th>
-              <th className="w-24 px-3 py-2 text-right font-medium">Total paid</th>
+              <th className="w-28 px-3 py-2 text-right font-medium">Line total (with VAT)</th>
               <th className="w-48 px-3 py-2 font-medium">Kind</th>
               <th className="w-16 px-3 py-2 text-center font-medium">Stock</th>
               <th className="w-10 px-3 py-2" />
@@ -208,7 +238,7 @@ export function ReceiptReview({
                 <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400" data-label="VAT">
                   {formatGBP(l.vat)}
                 </td>
-                <td className="px-3 py-2 text-right font-medium text-slate-900 dark:text-slate-50" data-label="Total paid">
+                <td className="px-3 py-2 text-right font-medium text-slate-900 dark:text-slate-50" data-label="Line total (with VAT)">
                   {formatGBP(roundMoney(l.net + l.vat))}
                 </td>
                 <td className="px-3 py-2" data-label={l.isStock ? "Stock group" : "Expense category"} data-wide>
