@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS, STOCK_GROUPS, VAT_RATES } from "@/lib/bookkeeping/categories";
+import { EXPENSE_CATEGORIES, PAYMENT_METHODS, VAT_RATES } from "@/lib/bookkeeping/categories";
+import { allGroupNames } from "@/lib/bookkeeping/supplier-types";
+import { getProductGroups } from "@/lib/bookkeeping/product-groups";
 import { bookkeepingCtx, ISO_DATE, NOT_ALLOWED, OK, refreshBookkeeping, splitGross, type ActionResult } from "@/lib/bookkeeping/server-actions";
 import { roundMoney } from "@/lib/format";
 
@@ -96,6 +98,7 @@ export async function saveReceipt(input: {
   const method = (PAYMENT_METHODS as readonly string[]).includes(input.paymentMethod) ? input.paymentMethod : "card";
   if (!Array.isArray(input.lines) || !input.lines.length || input.lines.length > 120) return { error: "The receipt needs between 1 and 120 lines." };
 
+  const groupNames = allGroupNames(await getProductGroups(org.orgId));
   const lines: ReceiptLineInput[] = [];
   for (const l of input.lines) {
     const description = String(l.description ?? "").trim().slice(0, 200);
@@ -114,7 +117,7 @@ export async function saveReceipt(input: {
       vat,
       vatRate: Number(l.vatRate),
       category: (EXPENSE_CATEGORIES as readonly string[]).includes(l.category) ? l.category : "Other",
-      itemGroup: l.itemGroup && (STOCK_GROUPS as readonly string[]).includes(l.itemGroup) ? l.itemGroup : null,
+      itemGroup: l.itemGroup && groupNames.includes(l.itemGroup) ? l.itemGroup : null,
       isStock: !!l.isStock,
       itemId: l.itemId ? String(l.itemId) : null,
     });
@@ -228,6 +231,7 @@ export async function saveReceipt(input: {
       qty: l.net < 0 ? 1 : l.qty,
       unit_cost: l.net < 0 ? l.net : round4(l.net / l.qty),
       vat_rate: l.vatRate,
+      category: l.itemGroup,
     }));
     const { error: lineError } = await supabase.from("purchase_line_items").insert(rows);
     if (lineError) {

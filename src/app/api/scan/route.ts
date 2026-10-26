@@ -7,7 +7,7 @@ export const maxDuration = 60;
 
 const MAX_BYTES = 4 * 1024 * 1024; // 4MB raw — keeps the base64 payload comfortably under the API's per-image limit
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]);
-const KINDS: ScanKind[] = ["receipt", "bill", "till", "list", "statement"];
+const KINDS: ScanKind[] = ["receipt", "bill", "till", "list", "statement", "credit_note", "fuel"];
 
 export async function POST(request: NextRequest) {
   const org = await getCurrentOrg();

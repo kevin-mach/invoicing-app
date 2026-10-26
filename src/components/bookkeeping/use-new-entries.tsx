@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { createScannedEntries, type ScannedEntriesResult, type NewItemInput } from "@/app/dashboard/scan-actions";
 import { NewEntriesPrompt, type NewEntry } from "./new-entries-prompt";
 
-export type ProposedEntry = NewEntry & { supplier?: string; customer?: string; item?: NewItemInput };
+export type ProposedEntry = NewEntry & { supplier?: string; supplierType?: string | null; customer?: string; item?: NewItemInput };
 
 /** Asks the person whether to add what a scan found to their database, and only then creates it.
  * `ask` resolves with what was created, or `null` if they chose to skip. */
@@ -39,6 +39,7 @@ export function useNewEntriesPrompt(): {
     setError(null);
     const result = await createScannedEntries({
       supplierNames: chosen.flatMap((e) => (e.supplier ? [e.supplier] : [])),
+      supplierTypes: Object.fromEntries(chosen.flatMap((e) => (e.supplier && e.supplierType ? [[e.supplier, e.supplierType]] : []))),
       customerNames: chosen.flatMap((e) => (e.customer ? [e.customer] : [])),
       items: chosen.flatMap((e) => (e.item ? [e.item] : [])),
     });

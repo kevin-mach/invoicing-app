@@ -1,6 +1,7 @@
 import { requireBookkeeper } from "@/lib/bookkeeping/access";
 import { createClient } from "@/lib/supabase/server";
-import { getExpenses, getInvoiceLines, getPosSales, getPurchaseSummaries } from "@/lib/bookkeeping/data";
+import { getExpenses, getInvoiceLines, getPosSales, getPurchaseSummaries, getSupplierCreditNotes, getCustomerCreditNotes } from "@/lib/bookkeeping/data";
+import { getBadDebtWriteOffs } from "@/lib/bookkeeping/bad-debts";
 import { totalStaffCost } from "@/lib/bookkeeping/payroll";
 import { resolvePeriod } from "@/lib/bookkeeping/period";
 import { formatGBP, roundMoney } from "@/lib/format";
@@ -35,11 +36,14 @@ export default async function ProfitAndLossPage({
   const { from, to } = resolvePeriod(params.from, params.to, "this-year");
 
   const supabase = await createClient();
-  const [lines, purchases, expenses, pos, { data: payRuns }] = await Promise.all([
+  const [lines, purchases, expenses, pos, credits, customerCredits, writeOffs, { data: payRuns }] = await Promise.all([
     getInvoiceLines(org.orgId, from, to),
     getPurchaseSummaries(org.orgId, { from, to }),
     getExpenses(org.orgId, from, to),
     getPosSales(org.orgId, from, to),
+    getSupplierCreditNotes(org.orgId, from, to),
+    getCustomerCreditNotes(org.orgId, from, to),
+    getBadDebtWriteOffs(org.orgId, from, to),
     supabase.from("pay_runs").select("pay_date, gross_pay, employer_ni, employer_pension").eq("org_id", org.orgId).gte("pay_date", from).lte("pay_date", to),
   ]);
 
@@ -47,11 +51,21 @@ export default async function ProfitAndLossPage({
   const rows = months.map((month) => {
     const sales = roundMoney(
       lines.filter((l) => l.issueDate.startsWith(month)).reduce((s, l) => s + l.net, 0) +
-        pos.filter((p) => p.sales_date.startsWith(month)).reduce((s, p) => s + p.net_sales, 0)
+        pos.filter((p) => p.sales_date.startsWith(month)).reduce((s, p) => s + p.net_sales, 0) -
+        // Credit notes given to customers come off sales.
+        customerCredits.filter((c) => c.date.startsWith(month)).reduce((s, c) => s + c.net, 0)
     );
     const staff = roundMoney((payRuns ?? []).filter((r) => r.pay_date.startsWith(month)).reduce((s, r) => s + totalStaffCost(r), 0));
-    const cogs = roundMoney(purchases.filter((p) => p.purchaseDate.startsWith(month)).reduce((s, p) => s + p.net, 0));
-    const exp = roundMoney(expenses.filter((e) => e.expense_date.startsWith(month)).reduce((s, e) => s + e.net_amount, 0));
+    // Supplier credit notes come off what was bought.
+    const cogs = roundMoney(
+      purchases.filter((p) => p.purchaseDate.startsWith(month)).reduce((s, p) => s + p.net, 0) -
+        credits.filter((c) => c.date.startsWith(month)).reduce((s, c) => s + c.net, 0)
+    );
+    // Bad debts written off (when relief is claimed) count as an expense; money recovered later reduces it.
+    const exp = roundMoney(
+      expenses.filter((e) => e.expense_date.startsWith(month)).reduce((s, e) => s + e.net_amount, 0) +
+        writeOffs.filter((w) => w.date.startsWith(month)).reduce((s, w) => s + w.net, 0)
+    );
     return { month, sales, cogs, gross: roundMoney(sales - cogs), staff, exp, net: roundMoney(sales - cogs - staff - exp) };
   });
 
@@ -69,6 +83,8 @@ export default async function ProfitAndLossPage({
 
   const byCategory = new Map<string, number>();
   for (const e of expenses) byCategory.set(e.category, roundMoney((byCategory.get(e.category) ?? 0) + e.net_amount));
+  const writtenOff = roundMoney(writeOffs.reduce((s, w) => s + w.net, 0));
+  if (writtenOff) byCategory.set("Bad debts written off", writtenOff);
   const categories = [...byCategory.entries()].sort((a, b) => b[1] - a[1]);
 
   const tone = (n: number) => (n >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400");

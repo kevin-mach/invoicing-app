@@ -15,6 +15,7 @@ import { reconcileReceipt } from "@/lib/scan/receipt-math";
 import type { ItemOption } from "@/lib/supabase/items";
 import { createExpense, deleteExpense, deleteReceipt, saveReceipt } from "../expenses-actions";
 import { ReceiptReview, type ReceiptDraft } from "./receipt-review";
+import { groupByKeyword, type ProductGroup } from "@/lib/bookkeeping/supplier-types";
 
 type Vendor = { id: string; name: string };
 
@@ -24,12 +25,15 @@ export function ExpenseForm({
   autoSaveScans,
   vendors,
   items,
+  groups = [],
 }: {
   orgId: string;
   today: string;
   autoSaveScans: boolean;
   vendors: Vendor[];
   items: ItemOption[];
+  /** The bookkeeper's own product groups; their keywords sort scanned lines. */
+  groups?: ProductGroup[];
 }) {
   const [draft, setDraft] = useState<ReceiptDraft | null>(null);
   const [draftFile, setDraftFile] = useState<File | null>(null);
@@ -216,7 +220,8 @@ export function ExpenseForm({
           vatRate: l.vatRate,
           vat: l.vat,
           category: l.category ?? data.category ?? "Other",
-          itemGroup: l.isStock && l.net >= 0 ? (l.itemGroup ?? "Other") : null,
+          // The bookkeeper's keyword groups win; other lines keep the scanner's stock group.
+          itemGroup: groupByKeyword(l.description, groups) ?? (l.isStock && l.net >= 0 ? (l.itemGroup ?? "Other") : null),
           // A discount or coupon is never a stock item — it just reduces the stock purchase it belongs to.
           isStock: l.isStock && l.net >= 0,
           itemId: l.isStock && l.net >= 0 ? (matchCatalogItemStrict(l.description, catalog)?.id ?? null) : null,
@@ -342,6 +347,7 @@ export function ExpenseForm({
           </p>
         ) : null}
         <ReceiptReview
+          groups={groups}
           draft={draft}
           onChange={setDraft}
           onSave={() => void saveDraft(draft, draftFile)}

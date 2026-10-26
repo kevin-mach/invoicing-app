@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { NewItemForm } from "./new-item-form";
+import { getProductGroups } from "@/lib/bookkeeping/product-groups";
+import { allGroupNames } from "@/lib/bookkeeping/supplier-types";
 
 export default async function NewItemPage() {
   const org = await getCurrentOrg();
@@ -12,7 +14,9 @@ export default async function NewItemPage() {
     .select("category")
     .eq("org_id", org.orgId)
     .not("category", "is", null);
-  const categories = Array.from(new Set((categoryRows ?? []).map((r) => r.category as string))).sort();
+  // The built-in groups and the bookkeeper's own come first, then any other category already in use.
+  const groupNames = allGroupNames(await getProductGroups(org.orgId));
+  const categories = [...groupNames, ...Array.from(new Set((categoryRows ?? []).map((r) => r.category as string))).filter((c) => !groupNames.some((g) => g.toLowerCase() === c.toLowerCase())).sort()];
 
   return (
     <div className="max-w-lg">

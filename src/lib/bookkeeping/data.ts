@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { roundMoney } from "@/lib/format";
+import { scaleChargeFor } from "./fuel";
 
 const PAGE = 1000;
 
@@ -391,4 +392,32 @@ export async function getPosSales(orgId: string, from: string, to: string): Prom
       .order("id")
       .range(f, t)
   );
+}
+
+export type ScaleChargeRow = { vehicleId: string; name: string; co2Band: string; charge: number; vat: number };
+
+/** The fuel scale charge due for each car on it over a VAT period (output VAT, Box 1). */
+export async function getScaleCharges(orgId: string, from: string, to: string): Promise<ScaleChargeRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("vehicles").select("id, name, co2_band").eq("org_id", orgId).eq("active", true).eq("vat_method", "scale_charge");
+  return (data ?? []).flatMap((v) => {
+    const c = scaleChargeFor(v.co2_band, from, to);
+    return c ? [{ vehicleId: v.id, name: v.name, co2Band: v.co2_band ?? "", ...c }] : [];
+  });
+}
+
+export type CreditNoteVatRow = { date: string; net: number; vat: number };
+
+/** Supplier credit notes dated in a period: they reduce what was bought and the VAT reclaimed on it. */
+export async function getSupplierCreditNotes(orgId: string, from: string, to: string): Promise<CreditNoteVatRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("credit_notes").select("credit_date, net_total, vat_total").eq("org_id", orgId).gte("credit_date", from).lte("credit_date", to);
+  return (data ?? []).map((c) => ({ date: c.credit_date, net: c.net_total, vat: c.vat_total }));
+}
+
+/** Credit notes given to customers dated in a period: they reduce sales and the VAT due on them. */
+export async function getCustomerCreditNotes(orgId: string, from: string, to: string): Promise<CreditNoteVatRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("customer_credit_notes").select("credit_date, net_total, vat_total").eq("org_id", orgId).gte("credit_date", from).lte("credit_date", to);
+  return (data ?? []).map((c) => ({ date: c.credit_date, net: c.net_total, vat: c.vat_total }));
 }

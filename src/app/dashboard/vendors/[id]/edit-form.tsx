@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateVendor, deleteVendor, type VendorFormState } from "../actions";
 import type { Tables } from "@/lib/supabase/types";
+import { SupplierTypeField } from "@/components/supplier-type-field";
 
 const initialState: VendorFormState = { error: null };
 
@@ -16,6 +17,7 @@ export function EditVendorForm({ vendor }: { vendor: Tables<"vendors"> }) {
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
         <input name="name" required defaultValue={vendor.name} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
       </div>
+      <SupplierTypeField defaultValue={vendor.supplier_type} />
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Contact</label>
         <input name="contact" defaultValue={vendor.contact ?? ""} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />

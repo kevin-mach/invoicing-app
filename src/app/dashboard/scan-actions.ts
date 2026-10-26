@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import type { ItemOption } from "@/lib/supabase/items";
+import { guessSupplierType, isSupplierType } from "@/lib/bookkeeping/supplier-types";
 
 export type NewItemInput = { name: string; unit: string; vatRate?: number; salePrice?: number; category?: string };
 export type NamedRecord = { id: string; name: string };
@@ -23,6 +24,8 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
  * than duplicated, so a double-tap can't create two copies. */
 export async function createScannedEntries(input: {
   supplierNames?: string[];
+  /** The kind of business each new supplier is, by name, when the scan could tell. */
+  supplierTypes?: Record<string, string>;
   customerNames?: string[];
   items?: NewItemInput[];
 }): Promise<ScannedEntriesResult> {
@@ -43,7 +46,12 @@ export async function createScannedEntries(input: {
         result.suppliers.push(found);
         continue;
       }
-      const { data, error } = await supabase.from("vendors").insert({ org_id: org.orgId, name }).select("id, name").single();
+      const type = Object.entries(input.supplierTypes ?? {}).find(([n]) => same(n, name))?.[1];
+      const { data, error } = await supabase
+        .from("vendors")
+        .insert({ org_id: org.orgId, name, supplier_type: isSupplierType(type) ? type : guessSupplierType(name) })
+        .select("id, name")
+        .single();
       if (error || !data) return { ...result, error: error?.message ?? `Couldn't add supplier "${name}".` };
       result.suppliers.push(data);
     }
@@ -68,7 +76,7 @@ export async function createScannedEntries(input: {
   if (wanted.length) {
     const { data: existing } = await supabase
       .from("items")
-      .select("id, item_code, name, unit, sale_price, vat_rate")
+      .select("id, item_code, name, unit, sale_price, vat_rate, category")
       .eq("org_id", org.orgId)
       .eq("is_active", true);
     const seen = new Set<string>();
@@ -92,7 +100,7 @@ export async function createScannedEntries(input: {
           vat_rate: [0, 5, 20].includes(Number(w.vatRate)) ? Number(w.vatRate) : 20,
           stock_qty: 0,
         })
-        .select("id, item_code, name, unit, sale_price, vat_rate")
+        .select("id, item_code, name, unit, sale_price, vat_rate, category")
         .single();
       if (error || !data) return { ...result, error: error?.message ?? `Couldn't add item "${name}".` };
       result.items.push({ ...data, default_cost: 0 });

@@ -31,10 +31,14 @@ export type VatReturn = {
   box7: number; // total purchases and expenses excluding VAT
 };
 
-export function buildVatReturn(sales: VatRow[], purchases: VatRow[], expenses: VatRow[]): VatReturn {
+/** Adjustments that change the VAT boxes without being sales or purchases (bad debt relief, the
+ * 6-month rule on unpaid bills). */
+export type VatBoxAdjustments = { box1: number; box4: number };
+
+export function buildVatReturn(sales: VatRow[], purchases: VatRow[], expenses: VatRow[], adjustments: VatBoxAdjustments = { box1: 0, box4: 0 }): VatReturn {
   const sum = (rows: VatRow[], pick: (r: VatRow) => number) => roundMoney(rows.reduce((s, r) => s + pick(r), 0));
-  const box1 = sum(sales, (r) => r.vat);
-  const box4 = roundMoney(sum(purchases, (r) => r.vat) + sum(expenses, (r) => r.vat));
+  const box1 = roundMoney(sum(sales, (r) => r.vat) + adjustments.box1);
+  const box4 = roundMoney(sum(purchases, (r) => r.vat) + sum(expenses, (r) => r.vat) + adjustments.box4);
   return {
     box1,
     box4,

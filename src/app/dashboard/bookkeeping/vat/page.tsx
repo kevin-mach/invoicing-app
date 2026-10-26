@@ -49,7 +49,9 @@ export default async function VatPage({ searchParams }: { searchParams: Promise<
   const params = await searchParams;
   const { from, to } = resolvePeriod(params.from, params.to, "this-quarter");
 
-  const { sales, posSales, purchases, expenses: expenseRows, box, invoiceLines } = await computeVatWorksheet(org.orgId, from, to);
+  const { sales, posSales, purchases, expenses: expenseRows, scaleCharges, creditNotes, customerCredits, adjustments, box, invoiceLines } = await computeVatWorksheet(org.orgId, from, to);
+  const customerCreditVat = -customerCredits.reduce((s, r) => s + r.vat, 0);
+  const creditVat = -creditNotes.reduce((s, r) => s + r.vat, 0);
 
   // Invoices in this period that carry VAT but don't add it to what the customer is asked to pay.
   const vatInvoices = new Map<string, boolean>();
@@ -104,6 +106,27 @@ export default async function VatPage({ searchParams }: { searchParams: Promise<
         <RateTable title="Supplier bills (input VAT)" rows={purchases} empty="No bills in this period." />
         <RateTable title="Expenses (input VAT)" rows={expenseRows} empty="No expenses in this period." />
       </div>
+
+      {scaleCharges.length || creditNotes.length || customerCredits.length || adjustments.rows.length ? (
+        <ul className="space-y-1 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          {scaleCharges.map((c) => (
+            <li key={c.vehicleId}>
+              Fuel scale charge, {c.name} (CO2 {c.co2Band}): {formatGBP(c.charge)} including {formatGBP(c.vat)} VAT — counted in sales (Box 1 and 6).
+            </li>
+          ))}
+          {customerCredits.length ? (
+            <li>Credit notes given to customers: {formatGBP(customerCreditVat)} VAT taken off the VAT due on sales (Box 1), and their net off sales (Box 6).</li>
+          ) : null}
+          {adjustments.rows.map((a, i) => (
+            <li key={i}>
+              {a.label} on {a.date}: {formatGBP(a.vat)} — {a.kind === "bad_debt_repaid" ? "added to Box 1" : a.kind === "unpaid_bill_repay" ? "taken off Box 4" : "added to Box 4"}.
+            </li>
+          ))}
+          {creditNotes.length ? (
+            <li>Supplier credit notes: {formatGBP(creditVat)} VAT taken off what you reclaim (Box 4), and their net off purchases (Box 7).</li>
+          ) : null}
+        </ul>
+      ) : null}
 
       <p className="text-sm text-slate-500 dark:text-slate-400">
         {posSales.length ? "Sales include POS takings. " : ""}This worksheet feeds the HMRC submission under Connections. It uses invoice dates (standard

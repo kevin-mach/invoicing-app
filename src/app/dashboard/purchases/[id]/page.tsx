@@ -4,6 +4,8 @@ import { PurchaseActions } from "./purchase-actions";
 import { formatGBP } from "@/lib/format";
 import { PropertyDetailsView } from "@/components/property-details";
 import { cleanPropertyDetails } from "@/lib/property";
+import { categoryOfLine } from "@/lib/bookkeeping/supplier-types";
+import { getProductGroups } from "@/lib/bookkeeping/product-groups";
 
 export default async function PurchaseDetailPage({
   params,
@@ -14,14 +16,15 @@ export default async function PurchaseDetailPage({
   const supabase = await createClient();
 
   const [{ data: purchase }, { data: lineItems }, { data: scans }] = await Promise.all([
-    supabase.from("purchases").select("*, vendors(name, address)").eq("id", id).maybeSingle(),
-    supabase.from("purchase_line_items").select("*").eq("purchase_id", id),
+    supabase.from("purchases").select("*, vendors(name, address, supplier_type)").eq("id", id).maybeSingle(),
+    supabase.from("purchase_line_items").select("*, items(category)").eq("purchase_id", id),
     supabase.from("receipt_scans").select("image_url").eq("purchase_id", id),
   ]);
 
   if (!purchase) notFound();
+  const groups = await getProductGroups(purchase.org_id);
 
-  const vendor = purchase.vendors as unknown as { name: string; address: string | null } | null;
+  const vendor = purchase.vendors as unknown as { name: string; address: string | null; supplier_type: string | null } | null;
   const property = cleanPropertyDetails(purchase.property_details);
   const net = (lineItems ?? []).reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
   const vatTotal = (lineItems ?? []).reduce((sum, li) => sum + (li.vat_amount ?? 0), 0);
@@ -32,6 +35,7 @@ export default async function PurchaseDetailPage({
       <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">
         Purchase from {vendor?.name ?? "—"}
       </h1>
+      {vendor?.supplier_type ? <p className="text-sm text-slate-500 dark:text-slate-400">{vendor.supplier_type}</p> : null}
       <p className="text-sm text-slate-500 dark:text-slate-400">
         {purchase.purchase_date}
         {purchase.supplier_ref ? ` · Supplier invoice ${purchase.supplier_ref}` : ""}
@@ -49,19 +53,24 @@ export default async function PurchaseDetailPage({
             <tr>
               <th className="px-4 py-2 font-medium">Description</th>
               <th className="px-4 py-2 text-right font-medium">Qty</th>
-              <th className="px-4 py-2 text-right font-medium">Cost</th>
+              <th className="px-4 py-2 text-right font-medium">Cost ex VAT</th>
               <th className="px-4 py-2 text-right font-medium">VAT %</th>
-              <th className="px-4 py-2 text-right font-medium">Total</th>
+              <th className="px-4 py-2 text-right font-medium">Total inc VAT</th>
             </tr>
           </thead>
           <tbody>
             {lineItems?.map((li) => (
               <tr key={li.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
-                <td className="px-4 py-2">{li.description}</td>
+                <td className="px-4 py-2">
+                  {li.description}
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {categoryOfLine(li.category, (li.items as unknown as { category: string | null } | null)?.category, vendor?.supplier_type, groups)}
+                  </p>
+                </td>
                 <td className="px-4 py-2 text-right">{li.qty}</td>
                 <td className="px-4 py-2 text-right">{formatGBP(li.unit_cost)}</td>
                 <td className="px-4 py-2 text-right">{li.vat_rate}%</td>
-                <td className="px-4 py-2 text-right">{formatGBP(li.line_total ?? li.qty * li.unit_cost)}</td>
+                <td className="px-4 py-2 text-right">{formatGBP((li.line_total ?? li.qty * li.unit_cost) + (li.vat_amount ?? 0))}</td>
               </tr>
             ))}
           </tbody>

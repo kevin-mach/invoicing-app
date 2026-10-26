@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createVendor, type VendorFormState } from "../actions";
+import { SupplierTypeField } from "@/components/supplier-type-field";
 
 const initialState: VendorFormState = { error: null };
 
@@ -16,6 +17,7 @@ export default function NewVendorPage() {
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Name</label>
           <input name="name" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />
         </div>
+        <SupplierTypeField />
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Contact</label>
           <input name="contact" placeholder="Phone, email, or contact person" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50" />

@@ -15,7 +15,7 @@ export default async function VendorsPage({
   const supabase = await createClient();
   let query = supabase
     .from("vendors")
-    .select("id, name, contact, address")
+    .select("id, name, contact, address, supplier_type")
     .eq("org_id", org.orgId)
     .order("name");
 
@@ -70,6 +70,7 @@ export default async function VendorsPage({
                   <Link href={`/dashboard/vendors/${v.id}`} className="font-medium text-slate-900 hover:underline dark:text-slate-50">
                     {v.name}
                   </Link>
+                  {v.supplier_type ? <p className="text-xs text-slate-500 dark:text-slate-400">{v.supplier_type}</p> : null}
                 </td>
                 <td className="hidden px-4 py-3 text-slate-600 sm:table-cell dark:text-slate-400">{v.contact}</td>
                 <td className="hidden px-4 py-3 text-slate-600 md:table-cell dark:text-slate-400">{v.address}</td>

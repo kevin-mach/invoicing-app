@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/supabase/org";
 import { cleanPropertyDetails } from "@/lib/property";
 import type { Json } from "@/lib/supabase/types";
+import { groupForSupplierType, isSupplierType, normaliseGroup } from "@/lib/bookkeeping/supplier-types";
+import { getProductGroups } from "@/lib/bookkeeping/product-groups";
 
 export type PurchaseFormState = { error: string | null };
 
@@ -16,6 +18,8 @@ export type PurchaseLineItemInput = {
   unit_cost: number;
   /** VAT % on this line; defaults to 0 (most food is zero-rated). */
   vat_rate?: number;
+  /** Stock category (Fish & seafood, Fruit & veg…); empty means "whatever the supplier sells". */
+  category?: string | null;
 };
 
 function parseLineItems(raw: string): PurchaseLineItemInput[] {
@@ -41,6 +45,7 @@ export async function createPurchase(
   if (!lineItems.length) return { error: "Add at least one line item." };
 
   const supplierRef = String(formData.get("supplier_ref") ?? "").trim();
+  const purchaseDate = String(formData.get("purchase_date") ?? "");
   const dueDate = String(formData.get("due_date") ?? "");
 
   let propertyDetails: Json | null = null;
@@ -52,6 +57,20 @@ export async function createPurchase(
   }
 
   const supabase = await createClient();
+
+  // A supplier with no type yet takes the one the scan worked out; its type then fills in the
+  // category on any line left on "From supplier".
+  const { data: vendor } = await supabase.from("vendors").select("id, supplier_type").eq("id", vendorId).eq("org_id", org.orgId).maybeSingle();
+  if (!vendor) return { error: "Select a vendor." };
+  let supplierType = vendor.supplier_type;
+  const scannedType = String(formData.get("supplier_type") ?? "");
+  if (!supplierType && isSupplierType(scannedType)) {
+    await supabase.from("vendors").update({ supplier_type: scannedType }).eq("id", vendor.id);
+    supplierType = scannedType;
+  }
+  const supplierGroup = groupForSupplierType(supplierType);
+  const groups = await getProductGroups(org.orgId);
+
   const { data: purchase, error } = await supabase
     .from("purchases")
     .insert({
@@ -59,6 +78,8 @@ export async function createPurchase(
       vendor_id: vendorId,
       notes: String(formData.get("notes") ?? "") || null,
       supplier_ref: supplierRef || null,
+      // Left out when empty so the database default (today) applies.
+      ...(/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate) ? { purchase_date: purchaseDate } : {}),
       due_date: /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : null,
       property_details: propertyDetails,
     })
@@ -78,6 +99,7 @@ export async function createPurchase(
       qty: li.qty,
       unit_cost: li.unit_cost,
       vat_rate: Math.min(100, Math.max(0, Number(li.vat_rate) || 0)),
+      category: normaliseGroup(li.category, groups) ?? supplierGroup,
     }))
   );
 

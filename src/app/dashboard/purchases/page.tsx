@@ -8,6 +8,8 @@ import { cleanDate, matchesSearch } from "@/lib/search";
 import { cleanGroup, groupRows, periodReportHref } from "@/lib/period";
 import { ListSearch } from "@/components/list-search";
 import { GroupHeaderRow } from "@/components/group-header-row";
+import { categoryOfLine, UNCATEGORISED } from "@/lib/bookkeeping/supplier-types";
+import { getProductGroups } from "@/lib/bookkeeping/product-groups";
 
 export default async function PurchasesPage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string; group?: string }> }) {
   const org = await getCurrentOrg();
@@ -22,13 +24,13 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
   const supabase = await createClient();
   let query = supabase
     .from("purchases")
-    .select("id, status, purchase_date, supplier_ref, notes, vendors(name), purchase_line_items(description, qty, unit_cost)")
+    .select("id, status, purchase_date, supplier_ref, notes, vendors(name, supplier_type), purchase_line_items(description, qty, unit_cost, category, items(category))")
     .eq("org_id", org.orgId)
     .order("purchase_date", { ascending: false })
     .limit(2000);
   if (from) query = query.gte("purchase_date", from);
   if (to) query = query.lte("purchase_date", to);
-  const { data: allPurchases } = await query;
+  const [{ data: allPurchases }, groups] = await Promise.all([query, getProductGroups(org.orgId)]);
   const totalOf = (p: { purchase_line_items: unknown }) =>
     ((p.purchase_line_items ?? []) as { qty: number; unit_cost: number }[]).reduce((sum, li) => sum + li.qty * li.unit_cost, 0);
   const purchases = (allPurchases ?? []).filter((p) => {
@@ -40,6 +42,17 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
     });
   });
   const filtering = !!(q || from || to);
+
+  // Spend (before VAT) per category across the purchases shown.
+  const byCategory = new Map<string, number>();
+  for (const p of purchases) {
+    const supplierType = (p.vendors as unknown as { supplier_type: string | null } | null)?.supplier_type;
+    for (const li of (p.purchase_line_items ?? []) as { qty: number; unit_cost: number; category: string | null; items: { category: string | null } | null }[]) {
+      const c = categoryOfLine(li.category, li.items?.category, supplierType, groups);
+      byCategory.set(c, (byCategory.get(c) ?? 0) + li.qty * li.unit_cost);
+    }
+  }
+  const categoryTotals = [...byCategory.entries()].filter(([, v]) => Math.abs(v) >= 0.005).sort((a, b) => b[1] - a[1]);
 
   return (
     <div>
@@ -58,6 +71,20 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Showing {purchases.length} of {allPurchases?.length ?? 0} purchase{(allPurchases?.length ?? 0) === 1 ? "" : "s"}.
         </p>
+      ) : null}
+
+      {categoryTotals.length ? (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Spend by category (before VAT)</p>
+          <ul className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            {categoryTotals.map(([name, total]) => (
+              <li key={name} className="flex justify-between gap-3">
+                <span className={name === UNCATEGORISED ? "text-amber-700 dark:text-amber-400" : "text-slate-600 dark:text-slate-400"}>{name}</span>
+                <span className="font-medium text-slate-900 dark:text-slate-50">{formatGBP(total)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">

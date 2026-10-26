@@ -231,6 +231,241 @@ export type Database = {
           },
         ]
       }
+      credit_note_lines: {
+        Row: {
+          credit_note_id: string
+          description: string
+          id: string
+          net_amount: number
+          qty: number
+          sort_order: number
+          unit_price: number
+          vat_amount: number
+          vat_rate: number
+        }
+        Insert: {
+          credit_note_id: string
+          description: string
+          id?: string
+          net_amount: number
+          qty?: number
+          sort_order?: number
+          unit_price?: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Update: {
+          credit_note_id?: string
+          description?: string
+          id?: string
+          net_amount?: number
+          qty?: number
+          sort_order?: number
+          unit_price?: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_note_lines_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "credit_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_notes: {
+        Row: {
+          account_reference: string | null
+          created_at: string
+          credit_date: string
+          credit_note_number: string | null
+          gross_total: number | null
+          id: string
+          image_path: string | null
+          net_total: number
+          notes: string | null
+          org_id: string
+          original_invoice_ref: string | null
+          reason: string | null
+          settled_on: string | null
+          status: string
+          supplier_name: string
+          supplier_vat_number: string | null
+          vat_total: number
+          vendor_id: string | null
+        }
+        Insert: {
+          account_reference?: string | null
+          created_at?: string
+          credit_date: string
+          credit_note_number?: string | null
+          id?: string
+          image_path?: string | null
+          net_total?: number
+          notes?: string | null
+          org_id: string
+          original_invoice_ref?: string | null
+          reason?: string | null
+          settled_on?: string | null
+          status?: string
+          supplier_name: string
+          supplier_vat_number?: string | null
+          vat_total?: number
+          vendor_id?: string | null
+        }
+        Update: {
+          account_reference?: string | null
+          created_at?: string
+          credit_date?: string
+          credit_note_number?: string | null
+          id?: string
+          image_path?: string | null
+          net_total?: number
+          notes?: string | null
+          org_id?: string
+          original_invoice_ref?: string | null
+          reason?: string | null
+          settled_on?: string | null
+          status?: string
+          supplier_name?: string
+          supplier_vat_number?: string | null
+          vat_total?: number
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_notes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_credit_note_lines: {
+        Row: {
+          credit_note_id: string
+          description: string
+          id: string
+          net_amount: number
+          qty: number
+          sort_order: number
+          unit_price: number
+          vat_amount: number
+          vat_rate: number
+        }
+        Insert: {
+          credit_note_id: string
+          description: string
+          id?: string
+          net_amount: number
+          qty?: number
+          sort_order?: number
+          unit_price?: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Update: {
+          credit_note_id?: string
+          description?: string
+          id?: string
+          net_amount?: number
+          qty?: number
+          sort_order?: number
+          unit_price?: number
+          vat_amount?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_credit_note_lines_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "customer_credit_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_credit_notes: {
+        Row: {
+          created_at: string
+          credit_date: string
+          customer_id: string
+          gross_total: number | null
+          id: string
+          invoice_id: string | null
+          net_total: number
+          notes: string | null
+          number: string
+          org_id: string
+          reason: string | null
+          settled_on: string | null
+          status: string
+          vat_total: number
+        }
+        Insert: {
+          created_at?: string
+          credit_date: string
+          customer_id: string
+          id?: string
+          invoice_id?: string | null
+          net_total?: number
+          notes?: string | null
+          number: string
+          org_id: string
+          reason?: string | null
+          settled_on?: string | null
+          status?: string
+          vat_total?: number
+        }
+        Update: {
+          created_at?: string
+          credit_date?: string
+          customer_id?: string
+          id?: string
+          invoice_id?: string | null
+          net_total?: number
+          notes?: string | null
+          number?: string
+          org_id?: string
+          reason?: string | null
+          settled_on?: string | null
+          status?: string
+          vat_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_credit_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_credit_notes_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_credit_notes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_members: {
         Row: {
           created_at: string
@@ -311,6 +546,7 @@ export type Database = {
           created_at: string
           description: string | null
           expense_date: string
+          fuel_receipt_id: string | null
           id: string
           net_amount: number
           org_id: string
@@ -327,6 +563,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           expense_date?: string
+          fuel_receipt_id?: string | null
           id?: string
           net_amount: number
           org_id: string
@@ -343,6 +580,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           expense_date?: string
+          fuel_receipt_id?: string | null
           id?: string
           net_amount?: number
           org_id?: string
@@ -354,6 +592,13 @@ export type Database = {
           vat_amount?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_fuel_receipt_id_fkey"
+            columns: ["fuel_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "fuel_receipts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_org_id_fkey"
             columns: ["org_id"]
@@ -407,6 +652,81 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fuel_receipts: {
+        Row: {
+          created_at: string
+          fuel_type: string | null
+          id: string
+          litres: number | null
+          notes: string | null
+          org_id: string
+          payment_method: string
+          price_per_litre: number | null
+          receipt_date: string
+          receipt_path: string | null
+          reclaim_pct: number
+          station: string
+          station_vat_number: string | null
+          total: number
+          vat_on_receipt: number
+          vat_reclaimed: number
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          fuel_type?: string | null
+          id?: string
+          litres?: number | null
+          notes?: string | null
+          org_id: string
+          payment_method?: string
+          price_per_litre?: number | null
+          receipt_date: string
+          receipt_path?: string | null
+          reclaim_pct?: number
+          station: string
+          station_vat_number?: string | null
+          total: number
+          vat_on_receipt?: number
+          vat_reclaimed?: number
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          fuel_type?: string | null
+          id?: string
+          litres?: number | null
+          notes?: string | null
+          org_id?: string
+          payment_method?: string
+          price_per_litre?: number | null
+          receipt_date?: string
+          receipt_path?: string | null
+          reclaim_pct?: number
+          station?: string
+          station_vat_number?: string | null
+          total?: number
+          vat_on_receipt?: number
+          vat_reclaimed?: number
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fuel_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_receipts_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
         ]
@@ -561,6 +881,7 @@ export type Database = {
           amount: number
           bank_transaction_id: string | null
           created_at: string
+          customer_credit_note_id: string | null
           id: string
           invoice_id: string
           method: string
@@ -572,6 +893,7 @@ export type Database = {
           amount: number
           bank_transaction_id?: string | null
           created_at?: string
+          customer_credit_note_id?: string | null
           id?: string
           invoice_id: string
           method?: string
@@ -583,6 +905,7 @@ export type Database = {
           amount?: number
           bank_transaction_id?: string | null
           created_at?: string
+          customer_credit_note_id?: string | null
           id?: string
           invoice_id?: string
           method?: string
@@ -1015,8 +1338,41 @@ export type Database = {
           },
         ]
       }
+      product_groups: {
+        Row: {
+          created_at: string
+          id: string
+          keywords: string[]
+          name: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          keywords?: string[]
+          name: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          keywords?: string[]
+          name?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_groups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_line_items: {
         Row: {
+          category: string | null
           description: string
           id: string
           item_id: string | null
@@ -1028,6 +1384,7 @@ export type Database = {
           vat_rate: number
         }
         Insert: {
+          category?: string | null
           description: string
           id?: string
           item_id?: string | null
@@ -1039,6 +1396,7 @@ export type Database = {
           vat_rate?: number
         }
         Update: {
+          category?: string | null
           description?: string
           id?: string
           item_id?: string | null
@@ -1793,6 +2151,120 @@ export type Database = {
           },
         ]
       }
+      vat_adjustments: {
+        Row: {
+          adjustment_date: string
+          amount: number
+          created_at: string
+          id: string
+          invoice_id: string | null
+          kind: string
+          notes: string | null
+          org_id: string
+          purchase_id: string | null
+          vat: number
+        }
+        Insert: {
+          adjustment_date: string
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          kind: string
+          notes?: string | null
+          org_id: string
+          purchase_id?: string | null
+          vat: number
+        }
+        Update: {
+          adjustment_date?: string
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          kind?: string
+          notes?: string | null
+          org_id?: string
+          purchase_id?: string | null
+          vat?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vat_adjustments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vat_adjustments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vat_adjustments_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicles: {
+        Row: {
+          active: boolean
+          business_share_pct: number | null
+          co2_band: string | null
+          created_at: string
+          fuel_type: string
+          id: string
+          name: string
+          org_id: string
+          private_use: boolean
+          registration: string | null
+          vat_method: string
+          vehicle_type: string
+        }
+        Insert: {
+          active?: boolean
+          business_share_pct?: number | null
+          co2_band?: string | null
+          created_at?: string
+          fuel_type?: string
+          id?: string
+          name: string
+          org_id: string
+          private_use?: boolean
+          registration?: string | null
+          vat_method?: string
+          vehicle_type: string
+        }
+        Update: {
+          active?: boolean
+          business_share_pct?: number | null
+          co2_band?: string | null
+          created_at?: string
+          fuel_type?: string
+          id?: string
+          name?: string
+          org_id?: string
+          private_use?: boolean
+          registration?: string | null
+          vat_method?: string
+          vehicle_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_item_prices: {
         Row: {
           cost_price: number
@@ -1883,6 +2355,7 @@ export type Database = {
           name: string
           notes: string | null
           org_id: string
+          supplier_type: string | null
         }
         Insert: {
           address?: string | null
@@ -1892,6 +2365,7 @@ export type Database = {
           name: string
           notes?: string | null
           org_id: string
+          supplier_type?: string | null
         }
         Update: {
           address?: string | null
@@ -1901,6 +2375,7 @@ export type Database = {
           name?: string
           notes?: string | null
           org_id?: string
+          supplier_type?: string | null
         }
         Relationships: [
           {

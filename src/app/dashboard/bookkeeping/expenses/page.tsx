@@ -10,6 +10,7 @@ import { DeleteExpenseButton, ExpenseForm } from "./expense-form";
 import { ReceiptsList, ReceiptTable, type ReceiptRow } from "./receipts-list";
 import { RescanReceiptButton } from "./rescan-button";
 import { ExpandableRow } from "@/components/expandable-row";
+import { getProductGroups } from "@/lib/bookkeeping/product-groups";
 
 export default async function ExpensesPage({
   searchParams,
@@ -23,7 +24,7 @@ export default async function ExpensesPage({
   const { from, to } = resolvePeriod(params.from, params.to, "this-month");
   const today = toIsoDate(new Date());
   const supabase = await createClient();
-  const [expenses, { data: vendorRows }, items, { data: receiptPurchaseRows }, { data: receiptRows }] = await Promise.all([
+  const [expenses, { data: vendorRows }, items, { data: receiptPurchaseRows }, { data: receiptRows }, groups] = await Promise.all([
     getExpenses(org.orgId, from, to),
     supabase.from("vendors").select("id, name").eq("org_id", org.orgId).order("name"),
     getItemsWithDefaultCost(org.orgId),
@@ -46,6 +47,7 @@ export default async function ExpensesPage({
       .lte("receipt_date", to)
       .order("receipt_date", { ascending: false })
       .order("created_at", { ascending: false }),
+    getProductGroups(org.orgId),
   ]);
   const receiptPurchases = (receiptPurchaseRows ?? []).map((p) => {
     const lines = (p.purchase_line_items ?? []) as { qty: number; line_total: number | null; vat_amount: number | null }[];
@@ -100,7 +102,7 @@ export default async function ExpensesPage({
 
   return (
     <div className="space-y-6">
-      <ExpenseForm orgId={org.orgId} today={today} autoSaveScans={org.autoSaveScans} vendors={vendorRows ?? []} items={items} />
+      <ExpenseForm orgId={org.orgId} today={today} autoSaveScans={org.autoSaveScans} vendors={vendorRows ?? []} items={items} groups={groups} />
       <PeriodFilter basePath="/dashboard/bookkeeping/expenses" from={from} to={to} />
 
       <ReceiptsList receipts={receiptList} />

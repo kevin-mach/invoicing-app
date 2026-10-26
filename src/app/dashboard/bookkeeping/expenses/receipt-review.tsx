@@ -2,7 +2,8 @@
 
 import { Trash2 } from "lucide-react";
 import { DateInput } from "@/components/date-input";
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS, STOCK_GROUPS, VAT_RATES } from "@/lib/bookkeeping/categories";
+import { EXPENSE_CATEGORIES, PAYMENT_METHODS, VAT_RATES } from "@/lib/bookkeeping/categories";
+import { allGroupNames, type ProductGroup } from "@/lib/bookkeeping/supplier-types";
 import { formatGBP, roundMoney, roundQty } from "@/lib/format";
 import { btnPrimary, btnSecondary, inputClass, labelClass } from "@/components/bookkeeping/ui";
 
@@ -49,7 +50,9 @@ export function ReceiptReview({
   saving,
   error,
   supplierNote,
+  groups = [],
 }: {
+  groups?: ProductGroup[];
   draft: ReceiptDraft;
   onChange: (next: ReceiptDraft) => void;
   onSave: () => void;
@@ -247,7 +250,7 @@ export function ReceiptReview({
                 <td className="px-3 py-2" data-label={l.isStock ? "Stock group" : "Expense category"} data-wide>
                   {l.isStock ? (
                     <select value={l.itemGroup ?? "Other"} onChange={(e) => setLine(l.key, { itemGroup: e.target.value })} className={cell}>
-                      {STOCK_GROUPS.map((g) => (
+                      {allGroupNames(groups).map((g) => (
                         <option key={g} value={g}>
                           {g}
                         </option>

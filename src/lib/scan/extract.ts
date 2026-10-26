@@ -2,13 +2,32 @@ import { EXPENSE_CATEGORIES, STOCK_GROUPS } from "@/lib/bookkeeping/categories";
 import { DENOMINATIONS } from "@/lib/cashup";
 import { roundMoney, roundQty } from "@/lib/format";
 import { cleanPropertyDetails, type PropertyDetails } from "@/lib/property";
+import { groupForSupplierType, guessSupplierType, isSupplierType, isUnreadable, SUPPLIER_TYPE_NAMES, unreadableName } from "@/lib/bookkeeping/supplier-types";
 
 /** Reads structured data out of a photo — a receipt, a supplier bill, or a till/cash-register
  * total — using Claude's vision. Every field the model returns is treated as a suggestion: the
  * caller always pre-fills a normal editable form with it rather than saving anything directly, so
  * a misread number is a quick edit, not a wrong figure in the books. */
 
-export type ScanKind = "receipt" | "bill" | "till" | "list" | "statement";
+export type ScanKind = "receipt" | "bill" | "till" | "list" | "statement" | "credit_note" | "fuel";
+
+/** A fuel receipt from a filling station, with what is needed to reclaim its VAT. */
+export type FuelExtraction = {
+  kind: "fuel";
+  station: string | null;
+  stationVatNumber: string | null;
+  date: string | null;
+  fuelType: string | null;
+  litres: number | null;
+  pricePerLitre: number | null;
+  /** The amount paid including VAT. */
+  total: number | null;
+  /** The VAT amount as printed, if it is. */
+  vatAmount: number | null;
+  paymentMethod: "cash" | "card" | null;
+  /** A vehicle registration printed on the receipt (fleet cards often print it). */
+  registration: string | null;
+};
 
 /** One row of a bank statement as printed. `datePrinted` is exactly what the date column shows
  * ("03 AUG", "02 SEP 2026") or empty when the row shares the date of the row above. */
@@ -72,10 +91,21 @@ export type ReceiptExtraction = {
   notes: string | null;
 };
 
-export type BillLine = { description: string; qty: number; unitCost: number; vatRate: number };
+export type BillLine = {
+  description: string;
+  qty: number;
+  unitCost: number;
+  vatRate: number;
+  /** kg, box, case… as written, if it is. */
+  unit?: string | null;
+  /** Stock category (Fish & seafood, Fruit & veg…), from the line or else from the kind of supplier. */
+  itemGroup?: string | null;
+};
 export type BillExtraction = {
   kind: "bill";
   vendorName: string | null;
+  /** What kind of business the supplier is (see supplier-types), read or guessed from the letterhead. */
+  supplierType: string | null;
   billNumber: string | null;
   date: string | null;
   dueDate: string | null;
@@ -89,6 +119,26 @@ export type BillExtraction = {
   property: PropertyDetails | null;
 };
 
+/** A credit note from a supplier: money they owe back to the business (a return, a refunded
+ * deposit, a price correction). Amounts are positive, as printed. */
+export type CreditNoteLine = { description: string; qty: number; unitPrice: number; net: number; vatRate: number; vat: number };
+export type CreditNoteExtraction = {
+  kind: "credit_note";
+  supplierName: string | null;
+  supplierVatNumber: string | null;
+  creditNoteNumber: string | null;
+  date: string | null;
+  /** The invoice, order or PO number the credit is against. */
+  originalInvoiceRef: string | null;
+  /** The supplier's account code for this business. */
+  accountReference: string | null;
+  reason: string | null;
+  lines: CreditNoteLine[];
+  netTotal: number | null;
+  vatTotal: number | null;
+  grossTotal: number | null;
+};
+
 export type TillExtraction = {
   kind: "till";
   total: number | null;
@@ -98,7 +148,7 @@ export type TillExtraction = {
 export type ListLine = { description: string; qty: number; unit: string | null };
 export type ListExtraction = { kind: "list"; items: ListLine[] };
 
-export type ScanExtraction = ReceiptExtraction | BillExtraction | TillExtraction | ListExtraction | StatementExtraction;
+export type ScanExtraction = ReceiptExtraction | BillExtraction | TillExtraction | ListExtraction | StatementExtraction | CreditNoteExtraction | FuelExtraction;
 
 /** The key as saved in the host's settings, tolerating the stray spaces, line breaks or quote
  * marks that often come along when it's pasted in. */
@@ -226,8 +276,16 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
       type: "object",
       properties: {
         vendor_name: { type: "string", description: "The supplier's business name." },
+        vendor_address: { type: "string", description: "The supplier's address as printed in the letterhead (it often names the market, e.g. Billingsgate or New Spitalfields)." },
+        supplier_type: {
+          type: "string",
+          enum: [...SUPPLIER_TYPE_NAMES],
+          description:
+            "What kind of business the supplier is, from its name, letterhead and what it sells: e.g. a Billingsgate Market stand or 'Shellfish'/'Marine Foods' -> 'Fish market / fishmonger'; a New Spitalfields Market stand or 'Veg' -> 'Fruit & veg wholesaler'; Smithfield -> 'Butcher / meat wholesaler'.",
+        },
         bill_number: { type: "string", description: "The supplier's own invoice/bill number." },
         date: { type: "string", description: "Invoice date, as YYYY-MM-DD." },
+        date_has_year: { type: "boolean", description: "false if the date as written has no year (e.g. '16/10'); true if a year is written." },
         due_date: { type: "string", description: "Payment due date, as YYYY-MM-DD, if shown." },
         prices_include_vat: {
           type: "boolean",
@@ -265,14 +323,84 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
           items: {
             type: "object",
             properties: {
-              description: { type: "string" },
-              qty: { type: "number", description: "Quantity. Default to 1 if not shown separately from the price." },
+              description: {
+                type: "string",
+                description:
+                  "What the item is, in plain words (fish/trade codes spelled out where you are sure, e.g. 'TBO' on a fish ticket -> 'Turbot'). If the handwriting can't be read, write 'Unreadable item' rather than guessing a name.",
+              },
+              qty: {
+                type: "number",
+                description:
+                  "Quantity in the unit given by `unit`. Handwritten trade shorthand: '5k' = 5 kg; '1/10' = 1 box of 10 kg (qty 1, unit 'box of 10kg'); a weight written above or beside the line (e.g. '8.00') is the quantity when quantity × price per kg gives the line total. Default to 1 if not shown.",
+              },
+              unit: { type: "string", description: "The unit the quantity is in, if written: kg, box, case, bag, each…" },
               unit_cost: { type: "number", description: "Cost per unit EXACTLY AS PRINTED — do not add or remove VAT yourself; prices_include_vat says which it is. Negative for a discount or credit." },
+              line_total: {
+                type: "number",
+                description: "The amount in the £ / total column for this line, exactly as written. On handwritten market slips this is usually the only price — the line total, not a price per kg.",
+              },
+              item_group: { type: "string", enum: [...STOCK_GROUPS], description: "The stock category of this item. When the description is unreadable, use what the supplier sells (a fishmonger -> 'Fish & seafood')." },
               vat_rate: { type: "number", enum: VAT_RATE_ENUM, description: "This line's UK VAT rate — 0, 5 or 20. A short code printed on the line (A, 0, 1…) is NOT the rate: look it up in the VAT table or key. If the document says VAT @ 20% overall, use 20." },
             },
             required: ["description", "unit_cost"],
           },
         },
+      },
+      required: ["lines"],
+    },
+  },
+  fuel: {
+    name: "record_fuel_receipt",
+    description: "Structured data read from a photo of a filling-station fuel receipt.",
+    input_schema: {
+      type: "object",
+      properties: {
+        station: { type: "string", description: "The filling station's trading name (e.g. 'Shell Charlton', 'Tesco Petrol Filling Station', 'BP')." },
+        station_vat_number: { type: "string", description: "The VAT registration number printed on the receipt (e.g. 'VAT No: GB 123 4567 89'), digits and GB prefix only. Omit if not printed." },
+        date: { type: "string", description: "Date of the purchase, as YYYY-MM-DD. UK dates are day-first." },
+        fuel_type: { type: "string", enum: ["Diesel", "Petrol", "LPG", "Electric", "AdBlue"], description: "The fuel bought (Unleaded / Super unleaded = Petrol)." },
+        litres: { type: "number", description: "Litres bought, as printed." },
+        price_per_litre: { type: "number", description: "Price per litre in pounds as printed (e.g. 1.459 for 145.9p/L)." },
+        total: { type: "number", description: "The total paid for the fuel including VAT, as printed." },
+        vat_amount: { type: "number", description: "The VAT amount as printed, if the receipt shows one." },
+        payment_method: { type: "string", enum: ["cash", "card"], description: "How it was paid, if shown." },
+        registration: { type: "string", description: "A vehicle registration printed on the receipt (fuel cards often print it), if any." },
+      },
+      required: ["station"],
+    },
+  },
+  credit_note: {
+    name: "record_credit_note",
+    description: "Structured data read from a photo of a supplier's credit note: who issued it, its number, date, what it is against, every line and the totals.",
+    input_schema: {
+      type: "object",
+      properties: {
+        supplier_name: { type: "string", description: "The trading name of the business that ISSUED the credit note (the supplier, usually in the logo or letterhead) — not the customer it is addressed to." },
+        supplier_vat_number: { type: "string", description: "The supplier's VAT registration number (e.g. GB177181489), if printed." },
+        credit_note_number: { type: "string", description: "The credit note's own number (e.g. 'Sales Credit Note Number: 28287' -> '28287')." },
+        date: { type: "string", description: "The credit note date, as YYYY-MM-DD. UK dates are day-first: 02/10/2026 is 2 October 2026." },
+        original_invoice_ref: { type: "string", description: "The invoice, order or PO number this credit is against, if printed (e.g. 'Customer PO: INV 555524', 'Original invoice', 'Against invoice')." },
+        account_reference: { type: "string", description: "The supplier's account reference/code for the customer, if printed." },
+        reason: { type: "string", description: "Why the credit was given, if the document says or it is obvious from the lines (e.g. 'Gas cylinder deposits returned', 'Damaged goods'). Short." },
+        lines: {
+          type: "array",
+          description: "EVERY line on the credit note, in order. Amounts are POSITIVE as printed even though they are a credit.",
+          items: {
+            type: "object",
+            properties: {
+              description: { type: "string" },
+              qty: { type: "number", description: "Quantity. 1 if not shown." },
+              unit_price: { type: "number", description: "Unit price as printed, before VAT." },
+              net_amount: { type: "number", description: "The line's net (before VAT) amount as printed." },
+              vat_rate: { type: "number", enum: VAT_RATE_ENUM, description: "The line's VAT %, 0, 5 or 20." },
+              vat_amount: { type: "number", description: "The line's VAT amount as printed, if shown." },
+            },
+            required: ["description", "net_amount"],
+          },
+        },
+        net_total: { type: "number", description: "Total net amount, as printed." },
+        vat_total: { type: "number", description: "Total VAT amount, as printed." },
+        gross_total: { type: "number", description: "The credit note total including VAT, as printed." },
       },
       required: ["lines"],
     },
@@ -327,12 +455,17 @@ const TOOLS: Record<ScanKind, { name: string; description: string; input_schema:
 };
 
 function systemPromptFor(kind: ScanKind): string {
-  const base = "You read UK retail and hospitality documents precisely. Only report figures you can actually see — never estimate or invent a value that isn't legible, and simply omit a field you can't read rather than guessing.";
+  const today = new Date().toISOString().slice(0, 10);
+  const base = `You read UK retail and hospitality documents precisely. Only report figures you can actually see — never estimate or invent a value that isn't legible, and simply omit a field you can't read rather than guessing. Today is ${today}: a date written without a year (e.g. '16/10') is in the most recent year that doesn't put it in the future.`;
   if (kind === "receipt")
     return `${base} You are reading a single shop receipt for a business purchase. Transcribe every item line (do not stop early on a long receipt), with its printed amount, quantity and VAT rate. Work out whether the printed line prices include VAT or exclude it (trade receipts often list prices before VAT, with 'TOTAL (EXCL VAT)', a VAT table and 'TOTAL (INCL VAT)' at the bottom — check that the line amounts add up to the ex-VAT total to be sure). Read the VAT table exactly as printed. A receipt that prints no VAT at all (many retail receipts) simply has no VAT information — leave those fields out rather than inventing them. Ignore barcodes, survey codes, loyalty messages and addresses when listing items. A short code printed beside each price (A, 0, 1, T…) is a VAT code, not a rate: find what rate it means in the VAT table or legend (on IKEA receipts code 0 is the 20% row) and use that rate. If no trading name is printed but a web address is (www.amazon.co.uk), the payee is the brand ("Amazon"). Record the cash handed over and the change given back when printed (amount_tendered, change_given); the total paid is the receipt's Total, not the cash handed over. Dates on UK receipts are day-first: 05.08.26 is 5 August 2026, never 8 May.`;
-  if (kind === "bill") return `${base} You are reading a supplier invoice or delivery note addressed to the business, listing what was bought and at what cost. A discount, credit or "less" line is a line too: give it a NEGATIVE unit cost. Copy each price exactly as printed and say whether the prices include VAT (prices_include_vat): shop receipts and lines worded "inc VAT" include it; Net / VAT / Total columns usually mean the prices are before VAT. Read the printed totals too. UK dates are day-first (05.08.26 is 5 August 2026). The supplier name is the business's trading name; if only a web address is printed (e.g. www.amazon.co.uk) use the brand ("Amazon"). For a letting or property-management agent's invoice, the charge itself is the fee line; put the rent received, expenses paid, balance due, property address and the tenancy dates in property_statement instead of making them invoice lines.`;
+  if (kind === "bill") return `${base} You are reading a supplier invoice or delivery note addressed to the business, listing what was bought and at what cost. A discount, credit or "less" line is a line too: give it a NEGATIVE unit cost. Copy each price exactly as printed and say whether the prices include VAT (prices_include_vat): shop receipts and lines worded "inc VAT" include it; Net / VAT / Total columns usually mean the prices are before VAT. Read the printed totals too. UK dates are day-first (05.08.26 is 5 August 2026). The supplier name is the business's trading name; if only a web address is printed (e.g. www.amazon.co.uk) use the brand ("Amazon"). For a letting or property-management agent's invoice, the charge itself is the fee line; put the rent received, expenses paid, balance due, property address and the tenancy dates in property_statement instead of making them invoice lines. Many market slips (Billingsgate, New Spitalfields) are handwritten: the £ and p columns give each line's total ('45 -' is £45.00), the number in the printed box at the bottom is the grand total, and quantity × unit price must equal the line total — if it doesn't, the line total is right and the quantity or unit price was misread. The oval stamp like 'GB TH017.002' is a food health mark, not a VAT number or invoice number. The name written by hand after 'To', 'M' or 'Customer' is the buyer, not an item. Fresh fish, fruit and veg are zero-rated (0% VAT).`;
   if (kind === "statement")
     return `${base} You are reading one page of a UK bank statement. Transcribe every transaction row with its description, the date as printed, the Paid In / Withdrawn amount and the running balance. Read the Paid In and Withdrawn columns by their position carefully: money in goes in Paid In, money out in Withdrawn. Also read the summary box (previous balance, paid in, withdrawn, new balance, period covered) exactly as printed. Skip the marketing text and any header or footer text.`;
+  if (kind === "fuel")
+    return `${base} You are reading a receipt from a filling station for fuel bought for a business vehicle. Read the station's name and its VAT number (needed to reclaim VAT), the date, the fuel, litres, price per litre, the total paid and the VAT amount if it is printed. Ignore shop items, loyalty points and adverts; if the receipt has shop items too, the total is the fuel line only.`;
+  if (kind === "credit_note")
+    return `${base} You are reading a credit note a supplier has sent to the business (money they owe back or will take off the next bill). The supplier is the business that issued it, not the one it is addressed to. Copy every line and the printed totals exactly, as positive numbers. UK dates are day-first (02/10/2026 is 2 October 2026). Handwriting on the page is just someone's note — ignore it unless it is a figure the print doesn't show.`;
   if (kind === "till") return `${base} You are reading a cash till: either a register's own total display/receipt, or a photo of physical notes and coins someone has counted out.`;
   return `${base} You are reading either physical stock (count what's actually there, item by item) or a written/printed list of items and quantities — list every distinct item you can identify, each with its own quantity.`;
 }
@@ -381,9 +514,23 @@ export async function extractFromImage(kind: ScanKind, base64: string, mediaType
   return normalise(kind, call.input as Record<string, unknown>);
 }
 
+const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&apos;": "'" };
+
 function str(v: unknown): string | null {
-  const s = typeof v === "string" ? v.trim() : "";
-  return s ? s.slice(0, 200) : null;
+  const s = (typeof v === "string" ? v : "").replace(/&(amp|lt|gt|quot|#39|apos);/g, (m) => ENTITIES[m]).trim();
+  // Placeholders the model sometimes writes instead of leaving a field out.
+  if (!s || /^(<\s*)?(unknown|n\/?a|none|null|not (shown|printed|legible))(\s*>)?$/i.test(s)) return null;
+  return s.slice(0, 200);
+}
+
+/** A date written without a year ("16/10") is in the latest year that doesn't put it in the future. */
+function dateWithoutYear(iso: string | null): string | null {
+  if (!iso) return null;
+  const now = new Date();
+  const year = now.getFullYear();
+  const candidate = `${year}${iso.slice(4)}`;
+  const tomorrow = new Date(now.getTime() + 86_400_000).toISOString().slice(0, 10);
+  return candidate <= tomorrow ? candidate : `${year - 1}${iso.slice(4)}`;
 }
 function isoDate(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
@@ -486,26 +633,56 @@ function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtracti
   if (kind === "bill") {
     const rawLines = Array.isArray(input.lines) ? input.lines : [];
     const lines: BillLine[] = rawLines
-      .map((l) => {
+      .map((l): BillLine | null => {
         if (typeof l !== "object" || l === null) return null;
         const rec = l as Record<string, unknown>;
-        const unitCost = num(rec.unit_cost);
         const description = str(rec.description);
+        const q = num(rec.qty);
+        let qty = q && q > 0 ? roundQty(q) : 1;
+        // With only one line on the slip, the slip's total is that line's total.
+        const lineTotal = num(rec.line_total) ?? (rawLines.length === 1 ? num(input.gross_total) : null);
+        let unitCost = num(rec.unit_cost);
+        // The written line total is what was paid, so when quantity × unit price doesn't reach it one
+        // of them was misread. A real price per kg that divides the total into a clean weight (57.60 ÷
+        // 7.20 = 8 kg) means the quantity was wrong; otherwise — including when the only price on the
+        // slip was copied in as the unit price — the unit price is worked out from the total.
+        if (lineTotal !== null && (unitCost === null || Math.abs(qty * unitCost - lineTotal) > 0.01)) {
+          const impliedQty = unitCost ? lineTotal / unitCost : 0;
+          const cleanWeight = unitCost !== null && Math.abs(unitCost - lineTotal) > 0.01 && impliedQty > 0 && Math.abs(impliedQty * 100 - Math.round(impliedQty * 100)) < 0.01;
+          if (cleanWeight) qty = roundQty(impliedQty);
+          else unitCost = Math.round((lineTotal / qty) * 10000) / 10000;
+        }
         if (!description || unitCost === null) return null; // a negative cost is a discount or credit line — keep it
-        const qty = num(rec.qty);
-        return { description, qty: qty && qty > 0 ? roundQty(qty) : 1, unitCost: roundMoney(unitCost), vatRate: vatRate(rec.vat_rate) };
+        const group = String(rec.item_group);
+        return {
+          description,
+          qty,
+          unitCost: Math.abs(unitCost * 100 - Math.round(unitCost * 100)) < 1e-6 ? roundMoney(unitCost) : unitCost,
+          vatRate: vatRate(rec.vat_rate),
+          unit: str(rec.unit),
+          itemGroup: (STOCK_GROUPS as readonly string[]).includes(group) ? group : null,
+        };
       })
       .filter((l): l is BillLine => l !== null)
       .slice(0, 40);
+    const vendorName = brandName(str(input.vendor_name));
+    const supplierType = isSupplierType(input.supplier_type) ? input.supplier_type : guessSupplierType(vendorName, str(input.vendor_address));
+    const supplierGroup = groupForSupplierType(supplierType);
+    for (const l of lines) {
+      // A specialist sells one kind of thing, so its lines are that kind whatever the line says.
+      l.itemGroup = supplierGroup ?? l.itemGroup ?? null;
+      if (isUnreadable(l.description)) l.description = unreadableName(supplierType);
+    }
     const total = (v: unknown) => {
       const n = num(v);
       return n === null ? null : roundMoney(n);
     };
     return {
       kind,
-      vendorName: brandName(str(input.vendor_name)),
+      vendorName,
+      supplierType,
       billNumber: str(input.bill_number),
-      date: isoDate(input.date),
+      date: input.date_has_year === false ? dateWithoutYear(isoDate(input.date)) : isoDate(input.date),
       dueDate: isoDate(input.due_date),
       lines,
       pricesIncludeVat: typeof input.prices_include_vat === "boolean" ? input.prices_include_vat : null,
@@ -560,6 +737,70 @@ function normalise(kind: ScanKind, input: Record<string, unknown>): ScanExtracti
       page: int(input.page),
       totalPages: int(input.total_pages),
       rows,
+    };
+  }
+  if (kind === "fuel") {
+    const money = (v: unknown) => {
+      const n = num(v);
+      return n === null ? null : roundMoney(Math.abs(n));
+    };
+    const ppl = num(input.price_per_litre);
+    const method = String(input.payment_method);
+    return {
+      kind,
+      station: brandName(str(input.station)),
+      stationVatNumber: str(input.station_vat_number),
+      date: isoDate(input.date),
+      fuelType: str(input.fuel_type),
+      litres: num(input.litres),
+      // A price printed in pence (145.9) is per litre in pounds (1.459).
+      pricePerLitre: ppl === null ? null : ppl > 20 ? Math.round(ppl * 10) / 10000 : ppl,
+      total: money(input.total),
+      vatAmount: money(input.vat_amount),
+      paymentMethod: method === "cash" || method === "card" ? method : null,
+      registration: str(input.registration)?.toUpperCase().replace(/\s+/g, " ") ?? null,
+    };
+  }
+  if (kind === "credit_note") {
+    const money = (v: unknown) => {
+      const n = num(v);
+      return n === null ? null : roundMoney(Math.abs(n));
+    };
+    const rawLines = Array.isArray(input.lines) ? input.lines : [];
+    const lines: CreditNoteLine[] = rawLines
+      .map((l) => {
+        if (typeof l !== "object" || l === null) return null;
+        const rec = l as Record<string, unknown>;
+        const description = str(rec.description);
+        const net = money(rec.net_amount);
+        if (!description || net === null) return null;
+        const q = num(rec.qty);
+        const qty = q && q > 0 ? roundQty(q) : 1;
+        const rate = vatRate(rec.vat_rate);
+        return {
+          description,
+          qty,
+          unitPrice: money(rec.unit_price) ?? roundMoney(net / qty),
+          net,
+          vatRate: rate,
+          vat: money(rec.vat_amount) ?? roundMoney((net * rate) / 100),
+        };
+      })
+      .filter((l): l is CreditNoteLine => l !== null)
+      .slice(0, 60);
+    return {
+      kind,
+      supplierName: brandName(str(input.supplier_name)),
+      supplierVatNumber: str(input.supplier_vat_number),
+      creditNoteNumber: str(input.credit_note_number),
+      date: isoDate(input.date),
+      originalInvoiceRef: str(input.original_invoice_ref),
+      accountReference: str(input.account_reference),
+      reason: str(input.reason),
+      lines,
+      netTotal: money(input.net_total),
+      vatTotal: money(input.vat_total),
+      grossTotal: money(input.gross_total),
     };
   }
   if (kind === "till") {

@@ -5,14 +5,19 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/dashboard/bookkeeping", label: "Overview" },
+  { href: "/dashboard/bookkeeping/reports", label: "Reports" },
   { href: "/dashboard/bookkeeping/bank", label: "Bank" },
   { href: "/dashboard/bookkeeping/receivables", label: "Receivables" },
   { href: "/dashboard/bookkeeping/payables", label: "Payables" },
+  { href: "/dashboard/bookkeeping/credit-notes", label: "Credit notes" },
+  { href: "/dashboard/bookkeeping/fuel", label: "Fuel" },
+  { href: "/dashboard/bookkeeping/bad-debts", label: "Bad debts" },
   { href: "/dashboard/bookkeeping/expenses", label: "Expenses" },
   { href: "/dashboard/bookkeeping/pos", label: "POS & sales" },
   { href: "/dashboard/bookkeeping/payroll", label: "Payroll" },
   { href: "/dashboard/bookkeeping/vat", label: "VAT" },
   { href: "/dashboard/bookkeeping/pnl", label: "Profit & loss" },
+  { href: "/dashboard/bookkeeping/categories", label: "Categories" },
   { href: "/dashboard/bookkeeping/export", label: "Export" },
   { href: "/dashboard/bookkeeping/connections", label: "Connections" },
 ];

@@ -85,8 +85,13 @@ export function reconcileBill(ex: BillExtraction): ReconciledBill {
     warnings.push(`The lines come to £${gross.toFixed(2)} with VAT but the document says £${ex.grossTotal.toFixed(2)} — check the lines and VAT rates.`);
   }
   if (includes === true) {
+    const i = lines.findIndex((l) => l.vatRate > 0);
+    const example =
+      i >= 0
+        ? ` For example "${lines[i].description}" printed at £${(ex.lines[i].qty * ex.lines[i].unitCost).toFixed(2)} is £${(lines[i].qty * lines[i].unitCost).toFixed(2)} + £${((lines[i].qty * lines[i].unitCost * lines[i].vatRate) / 100).toFixed(2)} VAT.`
+        : "";
     notices.push(
-      `The prices on this document already include VAT, so they have been converted to before-VAT costs and the VAT is added back once. The total is £${gross.toFixed(2)}${
+      `The prices on this document already include VAT. Costs are kept before VAT, so each VAT-able line's cost is the printed price with its VAT split out — the "Total inc VAT" column still matches the receipt.${example} The total is £${gross.toFixed(2)}${
         ex.grossTotal !== null ? ` (printed: £${ex.grossTotal.toFixed(2)} — a penny or two can differ from rounding)` : ""
       }.`
     );

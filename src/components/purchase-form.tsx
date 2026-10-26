@@ -17,17 +17,19 @@ import { useNewEntriesPrompt, type ProposedEntry } from "@/components/bookkeepin
 import { formatGBP, roundMoney, roundQty } from "@/lib/format";
 import { DateInput } from "@/components/date-input";
 import { VAT_RATES } from "@/lib/bookkeeping/categories";
+import { allGroupNames, groupByKeyword, isUnreadable, normaliseGroup, type ProductGroup } from "@/lib/bookkeeping/supplier-types";
 
 type Vendor = { id: string; name: string };
 type Row = PurchaseLineItemInput & { key: string };
 
-const emptyRow = (): Row => ({ key: crypto.randomUUID(), item_id: null, description: "", qty: 1, unit_cost: 0, vat_rate: 0 });
+const emptyRow = (): Row => ({ key: crypto.randomUUID(), item_id: null, description: "", qty: 1, unit_cost: 0, vat_rate: 0, category: null });
 
 export function PurchaseForm({
   action,
   orgId,
   vendors,
   items,
+  groups = [],
   initialVendorId,
   initialNotes,
   initialLineItems,
@@ -39,6 +41,8 @@ export function PurchaseForm({
   orgId: string;
   vendors: Vendor[];
   items: ItemOption[];
+  /** The bookkeeper's own product groups (Kitchenware, Cleaning materials…). */
+  groups?: ProductGroup[];
   initialVendorId?: string;
   initialNotes?: string;
   initialLineItems?: PurchaseLineItemInput[];
@@ -50,6 +54,8 @@ export function PurchaseForm({
   const [state, formAction, pending] = useActionState(action, { error: null } as PurchaseFormState);
   const [vendorId, setVendorId] = useState(initialVendorId ?? "");
   const [supplierRef, setSupplierRef] = useState("");
+  const [supplierType, setSupplierType] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [autoSaving, setAutoSaving] = useState(false);
   const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
@@ -96,7 +102,14 @@ export function PurchaseForm({
     // Costs are stored before VAT, so a receipt whose prices already include VAT is converted first.
     const rec = reconcileBill(raw);
     const data = { ...raw, lines: rec.lines };
-    setScanNotes([...rec.warnings, ...rec.notices]);
+    const unreadable = rec.lines.filter((l) => isUnreadable(l.description)).length;
+    setScanNotes([
+      ...rec.warnings,
+      ...(unreadable
+        ? [`${unreadable} line${unreadable === 1 ? "" : "s"} couldn't be read and ${unreadable === 1 ? "is" : "are"} named after what the supplier sells (e.g. "Unreadable veg") — rename ${unreadable === 1 ? "it" : "them"} if you know what ${unreadable === 1 ? "it was" : "they were"}.`]
+        : []),
+      ...rec.notices,
+    ]);
     if (propertyMode && raw.property) setProperty(raw.property);
 
     let vendorList = allVendors;
@@ -106,16 +119,25 @@ export function PurchaseForm({
     // Anything the photo mentions that isn't in the database yet is only added if the person says so.
     const proposed = new Map<string, ProposedEntry>();
     if (data.vendorName && !vendorMatch) {
-      proposed.set(`s:${data.vendorName}`, { key: `s:${data.vendorName}`, kind: "Supplier", label: data.vendorName, supplier: data.vendorName });
+      proposed.set(`s:${data.vendorName}`, {
+        key: `s:${data.vendorName}`,
+        kind: "Supplier",
+        label: data.vendorName,
+        detail: data.supplierType ?? undefined,
+        supplier: data.vendorName,
+        supplierType: data.supplierType,
+      });
     }
     for (const l of data.lines) {
+      // "Unreadable veg" is a placeholder for the person to rename, not a product to add to the catalogue.
+      if (isUnreadable(l.description)) continue;
       if (matchCatalogItem(l.description, catalogList) || proposed.has(`i:${l.description}`)) continue;
       proposed.set(`i:${l.description}`, {
         key: `i:${l.description}`,
         kind: "Item",
         label: l.description,
         detail: `${l.qty} × ${formatGBP(l.unitCost)}`,
-        item: { name: l.description, unit: "unit", vatRate: l.vatRate },
+        item: { name: l.description, unit: l.unit || "unit", vatRate: l.vatRate, category: l.itemGroup ?? undefined },
       });
     }
 
@@ -130,12 +152,14 @@ export function PurchaseForm({
         setExtraVendors((p) => [...p, ...created.suppliers]);
         setExtraItems((p) => [...p, ...created.items]);
         vendorMatch = data.vendorName ? matchVendor(data.vendorName, vendorList) : null;
-        resolved = (!data.vendorName || !!vendorMatch) && data.lines.every((l) => !!matchCatalogItem(l.description, catalogList));
+        resolved = (!data.vendorName || !!vendorMatch) && data.lines.every((l) => isUnreadable(l.description) || !!matchCatalogItem(l.description, catalogList));
       }
     }
 
     if (vendorMatch) setVendorId(vendorMatch.id);
     if (data.billNumber) setSupplierRef(data.billNumber);
+    setSupplierType(data.supplierType ?? "");
+    if (data.date) setPurchaseDate(data.date);
     if (data.dueDate) setDueDate(data.dueDate);
 
     const nextRows: Row[] = data.lines.length
@@ -148,6 +172,8 @@ export function PurchaseForm({
             qty: l.qty,
             unit_cost: l.unitCost,
             vat_rate: l.vatRate,
+            // The bookkeeper's keyword groups win, then a catalogue item's own category, then the scan's (which falls back to the supplier's).
+            category: groupByKeyword(item ? item.name : l.description, groups) ?? normaliseGroup(item?.category, groups) ?? l.itemGroup ?? null,
           };
         })
       : rows;
@@ -156,13 +182,15 @@ export function PurchaseForm({
     // Auto-save needs an exact supplier, every line settled (matched or just added with the
     // person's say-so), and at least one real line item.
     const validLines = nextRows.filter((r) => r.description.trim() && r.qty > 0);
-    const ready = autoSaveScans && resolved && vendorMatch && data.lines.length && validLines.length === nextRows.length && !rec.warnings.length;
+    const ready = autoSaveScans && resolved && vendorMatch && data.lines.length && validLines.length === nextRows.length && !rec.warnings.length && !unreadable;
     if (!ready || !vendorMatch) return;
 
     setAutoSaving(true);
     const formData = new FormData();
     formData.set("vendor_id", vendorMatch.id);
     formData.set("supplier_ref", data.billNumber ?? "");
+    formData.set("supplier_type", data.supplierType ?? "");
+    formData.set("purchase_date", data.date ?? "");
     formData.set("due_date", data.dueDate ?? "");
     formData.set("notes", "");
     formData.set("image_url", "");
@@ -183,6 +211,7 @@ export function PurchaseForm({
     <form action={formAction} className="mt-6 space-y-6">
       <input type="hidden" name="line_items" value={JSON.stringify(rows.map(({ key: _key, ...rest }) => rest))} />
       <input type="hidden" name="image_url" value={imageUrl ?? ""} />
+      <input type="hidden" name="supplier_type" value={supplierType} />
       <input type="hidden" name="property_details" value={propertyMode && hasPropertyDetails(property) ? JSON.stringify(property) : ""} />
 
       {prompt}
@@ -227,6 +256,16 @@ export function PurchaseForm({
           />
         </div>
         <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Purchase date</label>
+          <DateInput
+            name="purchase_date"
+            value={purchaseDate}
+            onChange={(e) => setPurchaseDate(e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">The date on the receipt or invoice. Leave empty to use today.</p>
+        </div>
+        <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Payment due (optional)</label>
           <DateInput
             name="due_date"
@@ -249,15 +288,16 @@ export function PurchaseForm({
       {propertyMode ? <PropertyFields value={property} onChange={setProperty} title="Agent's property statement (managed property, rent and dates)" /> : null}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <table className="lines w-full min-w-[560px] text-left text-sm">
+        <table className="lines w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-3 py-2 font-medium">Item</th>
               <th className="px-3 py-2 font-medium">Description</th>
               <th className="w-20 px-3 py-2 text-right font-medium">Qty</th>
-              <th className="w-24 px-3 py-2 text-right font-medium">Cost</th>
+              <th className="w-36 px-3 py-2 font-medium">Category</th>
+              <th className="w-24 px-3 py-2 text-right font-medium">Cost ex VAT</th>
               <th className="w-20 px-3 py-2 text-right font-medium">VAT %</th>
-              <th className="w-24 px-3 py-2 text-right font-medium">Line total</th>
+              <th className="w-24 px-3 py-2 text-right font-medium">Total inc VAT</th>
               <th className="w-10 px-3 py-2" />
             </tr>
           </thead>
@@ -270,7 +310,12 @@ export function PurchaseForm({
                     onChange={(e) => {
                       const item = itemsById.get(e.target.value);
                       if (item) {
-                        updateRow(row.key, { item_id: item.id, description: item.name, unit_cost: item.default_cost || row.unit_cost });
+                        updateRow(row.key, {
+                          item_id: item.id,
+                          description: item.name,
+                          unit_cost: item.default_cost || row.unit_cost,
+                          category: groupByKeyword(item.name, groups) ?? normaliseGroup(item.category, groups) ?? row.category ?? null,
+                        });
                       } else {
                         updateRow(row.key, { item_id: null });
                       }
@@ -302,7 +347,21 @@ export function PurchaseForm({
                     className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
                   />
                 </td>
-                <td className="px-3 py-2" data-label="Cost">
+                <td className="px-3 py-2" data-label="Category">
+                  <select
+                    value={row.category ?? ""}
+                    onChange={(e) => updateRow(row.key, { category: e.target.value || null })}
+                    className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-50"
+                  >
+                    <option value="">From supplier</option>
+                    {allGroupNames(groups).map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-3 py-2" data-label="Cost ex VAT">
                   <input
                     type="number"
                     step="0.01"
@@ -325,8 +384,8 @@ export function PurchaseForm({
                     ))}
                   </select>
                 </td>
-                <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-50" data-label="Line total">
-                  {formatGBP(row.qty * row.unit_cost)}
+                <td className="px-3 py-2 text-right text-slate-900 dark:text-slate-50" data-label="Total inc VAT">
+                  {formatGBP(roundMoney(row.qty * row.unit_cost * (1 + (Number(row.vat_rate) || 0) / 100)))}
                 </td>
                 <td className="px-3 py-2 text-right" data-remove>
                   <button type="button" onClick={() => removeRow(row.key)} className="text-slate-400 hover:text-red-600">
