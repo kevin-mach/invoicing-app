@@ -26,7 +26,9 @@ export function reconcileBill(ex: BillExtraction): ReconciledBill {
 
   const matchesNet = near(printedSum, ex.netTotal);
   const matchesGross = near(printedSum, ex.grossTotal);
-  const hasVatInfo = ex.vatTotal !== null || ex.pricesIncludeVat !== null || ex.lines.some((l) => l.vatRate > 0);
+  // Only a document that actually charges VAT has a "before or including VAT" question to answer. A slip of
+  // zero-rated goods (fish, veg) has none, so it must not be told its prices "include VAT".
+  const hasVatInfo = (ex.vatTotal ?? 0) > 0 || ex.lines.some((l) => l.vatRate > 0);
 
   let includes: boolean | null = null;
   if (hasVatInfo) {
